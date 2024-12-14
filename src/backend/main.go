@@ -1457,13 +1457,18 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
+	"math/rand"
 	"net"
 	"net/http"
+	"pytrader/definitions"
 	pb "pytrader/tradepb"
+	"strconv"
 	"sync"
 	"time"
 
@@ -1475,14 +1480,9 @@ type server struct {
 	pb.UnimplementedTradeServiceServer
 }
 
-// SendTrade implements the SendTrade RPC
-func (s *server) SendTrade(ctx context.Context, trade *pb.Trade) (*pb.TradeResponse, error) {
-	log.Printf("Received trade: %+v", trade)
-
-	// Send trade to the processing channel
-	tradeChannel <- trade
-
-	return &pb.TradeResponse{Status: "Trade received and processing"}, nil
+type OrderResponse struct {
+	Order   Order
+	OrderId int
 }
 
 type Order struct {
@@ -1494,6 +1494,16 @@ type MyError struct{}
 
 func (m *MyError) Error() string {
 	return "Failed to get price."
+}
+
+// SendTrade implements the SendTrade RPC
+func (s *server) SendTrade(ctx context.Context, trade *pb.Trade) (*pb.TradeResponse, error) {
+	log.Printf("Received trade: %+v", trade)
+
+	// Send trade to the processing channel
+	tradeChannel <- trade
+
+	return &pb.TradeResponse{Status: "Trade received and processing"}, nil
 }
 
 // Function to send a GET request to localhost:8081/api/[contract_id] and retrieve the price
@@ -1512,7 +1522,7 @@ func fetchPriceQuote(contractID int32, exchange string) (float64, error) {
 	}
 	err = json.NewDecoder(resp.Body).Decode(&response)
 	if err != nil {
-		fmt.Println("Error decoding response:", err)
+		fmt.Println("Error decoding quote:", err)
 		return -1.0, err // Default price if there is an error
 	}
 
@@ -1523,15 +1533,80 @@ func fetchPriceQuote(contractID int32, exchange string) (float64, error) {
 	return response.Price, nil
 }
 
-// Thread-safe map to store orders
-var orders sync.Map
+// Send order to BrokerAPI
+func transmitOrder(order Order, testTrade bool) (int, error) {
+	if testTrade {
+		fmt.Println("Test Trade --> ")
+		return rand.Intn(1000), nil
+	}
+	url := "http://127.0.0.1:8000/placeLimitOrder?broker=IB"
+	orderJSON, err := json.Marshal(order)
+	if err != nil {
+		fmt.Println("Error marshaling order to JSON:", err)
+		return 0, err
+	}
+	fmt.Println("Order Spec: ", string(orderJSON))
+
+	// req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(string(orderJSON)))
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(orderJSON))
+	if err != nil {
+		fmt.Println("Error creating POST request:", err)
+		return 0, err
+	}
+
+	// Set headers for the POST request
+	req.Header.Add("Content-Type", "application/json")
+	fmt.Println("Transmitting Order...")
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println("Error sending POST request:", err)
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	fmt.Printf("POST request to %s completed with status: %s\n", url, resp.Status)
+	// read response body
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Println(err)
+		return 0, err
+
+	}
+	// print response body
+	//convert string to int
+	n, err := strconv.Atoi(string(body))
+	//check if error occured
+	if err != nil {
+		//executes if there is any error
+		fmt.Println(err)
+		return 0, err
+
+	}
+	fmt.Println("Order Sent")
+
+	return n, nil
+}
 
 func processNewTrades(workerId int) {
 	for trade := range tradeChannel {
+		workerInfo := fmt.Sprintf("Worker %d ==>", workerId)
+
+		// Create key for Order - #TODO - Add Timestamp
+		positionId := fmt.Sprintf("%s-%s", trade.StrategyName, trade.Symbol)
+
+		// deduplication
+		_, ok := positions.Load(positionId)
+		if ok {
+
+			fmt.Printf("%sPending order exists, trade skipped: %s", workerInfo, trade)
+			continue
+		}
+
 		// Fetch price quote
 		price, err := fetchPriceQuote(trade.ContractId, trade.Exchange)
 		if err != nil {
-			log.Printf("Failed to fetch price for symbol %s: %v", trade.Symbol, err)
+			log.Printf("%sFailed to fetch price for symbol %s: %v", workerInfo, trade.Symbol, err)
 			continue
 		}
 
@@ -1542,24 +1617,111 @@ func processNewTrades(workerId int) {
 			Timestamp:  time.Now(),
 		}
 
-		// Store order (use contract ID as key)
-		orders.Store(trade.ContractId, order)
-		log.Printf("Worker %d ==> Order created: %+v", workerId, order)
+		// Send order
+		orderId, err := transmitOrder(order, true)
+		if err != nil {
+			log.Printf("%sFailed to subimt order for strategy-symbol %s-%s: %v", workerInfo, trade.StrategyName, trade.Symbol, err)
+			continue
+		}
+		// Save Order Id received from API call to broker
+		orderResponse := OrderResponse{
+			Order:   order,
+			OrderId: orderId,
+		}
+		updatePositionsToPending(orderResponse)
+
+		go monitorFill(orderResponse)
+
 	}
 }
 
+// var orders sync.Map                          // Thread-safe map to store orders
 var tradeChannel = make(chan *pb.Trade, 100) // Buffered channel for trades
+type poolFunction func(int)
 
-func startWorkerPool(numWorkers int) {
+var positions sync.Map //
+
+func startWorkerPool(numWorkers int, f poolFunction) {
 	for i := 0; i < numWorkers; i++ {
-		go processNewTrades(i)
+		go f(i)
 	}
 }
 
+type Fill struct {
+	Id       int     `json:"id"`
+	Price    float64 `json:"price"`
+	Status   string  `json:"status"`
+	Quantity float64 `json:"quantity"`
+}
+
+func monitorFill(orderResp OrderResponse) {
+	fmt.Println("Monitoring fill")
+	isFilled := false
+	for !isFilled {
+
+		url := fmt.Sprintf("http://127.0.0.1:8000/fills?Id=%d", orderResp.OrderId)
+		resp, err := http.Get(url)
+		if err != nil {
+			fmt.Println("Error sending GET request:", err)
+			// return -1.0, err // Default price if there is an error
+		}
+		defer resp.Body.Close()
+
+		// Parse the response body to extract the price
+		var response []Fill
+		err = json.NewDecoder(resp.Body).Decode(&response)
+		if err != nil {
+			fmt.Println("Error decoding fills:", err)
+			// return -1.0, err // Default price if there is an error
+		}
+
+		for _, fill := range response {
+			if fill.Id != orderResp.OrderId {
+				continue
+			}
+			if fill.Status != "filled" {
+				continue
+			}
+			updatePositionsToFilled(orderResp, fill.Price, fill.Quantity)
+			fmt.Println("Order Filled: ", orderResp.OrderId)
+			isFilled = true
+		}
+		time.Sleep(time.Second)
+	}
+}
+
+func updatePositionsToPending(orderResp OrderResponse) {
+	fmt.Println("Updating Positions for Pending Order")
+	positionId := fmt.Sprintf("%s-%s", orderResp.Order.Trade.StrategyName, orderResp.Order.Trade.Symbol)
+	positions.Store(positionId, definitions.Position{
+		Symbol:     orderResp.Order.Trade.Symbol,
+		Exchange:   orderResp.Order.Trade.Exchange,
+		Quantity:   0,
+		CostBasis:  0.0,
+		Datetime:   time.Now().String(),
+		ContractID: int(orderResp.Order.Trade.ContractId),
+		Status:     "pending",
+	})
+}
+
+func updatePositionsToFilled(orderResp OrderResponse, costBasis, quantity float64) {
+	fmt.Println("Updating Positions for Filled Order")
+	positionId := fmt.Sprintf("%s-%s", orderResp.Order.Trade.StrategyName, orderResp.Order.Trade.Symbol)
+	positions.Store(positionId, definitions.Position{
+		Symbol:     orderResp.Order.Trade.Symbol,
+		Exchange:   orderResp.Order.Trade.Exchange,
+		Quantity:   quantity,
+		CostBasis:  costBasis,
+		Datetime:   time.Now().String(),
+		ContractID: int(orderResp.Order.Trade.ContractId),
+		Status:     "filled",
+	})
+}
 func main() {
 	// Start the trade processing worker
-	startWorkerPool(5)
-
+	startWorkerPool(5, processNewTrades)
+	// Start the trade processing worker
+	// startWorkerPool(5, tradeReconciliation)
 	// Start the gRPC server
 	listener, err := net.Listen("tcp", ":50051")
 	if err != nil {

@@ -24,6 +24,7 @@ type Position struct {
 	CostBasis  float64 `json:"cost_basis"`
 	Datetime   string  `json:"datetime"`
 	ContractID int     `json:"contract_id"`
+	Status     string  `json:"status"`
 }
 
 // Struct to hold shared state

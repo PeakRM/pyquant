@@ -11,6 +11,7 @@ class Position(BaseModel):
     cost_basis: float
     datetime: Union[str, datetime.datetime]
     contract_id: int
+    status: str
 
 class AccountData(BaseModel):
     position: Position
