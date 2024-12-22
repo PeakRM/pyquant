@@ -20,7 +20,7 @@ type Trade struct {
 type Position struct {
 	Symbol     string  `json:"symbol"`
 	Exchange   string  `json:"exchange"`
-	Quantity   float64 `json:"quantity"`
+	Quantity   int `json:"quantity"`
 	CostBasis  float64 `json:"cost_basis"`
 	Datetime   string  `json:"datetime"`
 	ContractID int     `json:"contract_id"`

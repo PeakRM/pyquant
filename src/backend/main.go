@@ -1463,12 +1463,14 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math"
 	"math/rand"
 	"net"
 	"net/http"
 	"pytrader/definitions"
 	pb "pytrader/tradepb"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -1490,6 +1492,14 @@ type Order struct {
 	PriceQuote float64   // Price quote fetched from the API
 	Timestamp  time.Time // Time the order was created
 }
+
+type Fill struct {
+	Id       int     `json:"id"`
+	Price    float64 `json:"price"`
+	Status   string  `json:"status"`
+	Quantity float64 `json:"quantity"`
+}
+
 type MyError struct{}
 
 func (m *MyError) Error() string {
@@ -1596,11 +1606,37 @@ func processNewTrades(workerId int) {
 		positionId := fmt.Sprintf("%s-%s", trade.StrategyName, trade.Symbol)
 
 		// deduplication
-		_, ok := positions.Load(positionId)
+		i, ok := positions.Load(positionId)
+		// If position is found
 		if ok {
+			//load position to struct
+			current_pos, ok1 := i.(definitions.Position)
+			if !ok1 {
+				fmt.Printf("%sIssue reading position: i: %s \n cp: %t\n", workerInfo, i, ok1)
+				continue
+			}
 
-			fmt.Printf("%sPending order exists, trade skipped: %s", workerInfo, trade)
-			continue
+			fmt.Println("curr_pos:")
+			open := 1.
+			// an open position is postive
+			// check if we have a selling order
+			if trade.Side == "SELL" {
+				// if so switch sign of order
+				open = -1.
+			}
+			//convert trade quantity from string to float64
+			q, err := strconv.ParseFloat(strings.TrimSpace(trade.Quantity), 64)
+			if err != nil {
+				// if it errors, you're fucked
+				fmt.Println("shit ", err)
+				continue
+			}
+			// check if the direction of the new trade (open*quantity) is equal to the dirction of the current position.
+			if math.Signbit(open*q) == math.Signbit(float64(current_pos.Quantity)) {
+				// if so, skip the trade because we have an open position
+				fmt.Println(open, q, current_pos.Quantity)
+				fmt.Printf("%sOpen/Pending order exists, trade skipped: %s - %s - %t \n", workerInfo, trade, i, ok)
+			}
 		}
 
 		// Fetch price quote
@@ -1635,23 +1671,10 @@ func processNewTrades(workerId int) {
 	}
 }
 
-// var orders sync.Map                          // Thread-safe map to store orders
-var tradeChannel = make(chan *pb.Trade, 100) // Buffered channel for trades
-type poolFunction func(int)
-
-var positions sync.Map //
-
 func startWorkerPool(numWorkers int, f poolFunction) {
 	for i := 0; i < numWorkers; i++ {
 		go f(i)
 	}
-}
-
-type Fill struct {
-	Id       int     `json:"id"`
-	Price    float64 `json:"price"`
-	Status   string  `json:"status"`
-	Quantity float64 `json:"quantity"`
 }
 
 func monitorFill(orderResp OrderResponse) {
@@ -1682,7 +1705,12 @@ func monitorFill(orderResp OrderResponse) {
 			if fill.Status != "filled" {
 				continue
 			}
-			updatePositionsToFilled(orderResp, fill.Price, fill.Quantity)
+			direction := 1.0
+			if orderResp.Order.Trade.Side == "SELL" {
+				direction = -1.0
+			}
+
+			updatePositionsToFilled(orderResp, fill.Price, int(direction*math.Abs(float64(fill.Quantity))))
 			fmt.Println("Order Filled: ", orderResp.OrderId)
 			isFilled = true
 		}
@@ -1702,22 +1730,126 @@ func updatePositionsToPending(orderResp OrderResponse) {
 		ContractID: int(orderResp.Order.Trade.ContractId),
 		Status:     "pending",
 	})
+	// Marshal to JSON file
+	if err := SyncMapToJSONFile(&positions, "../positions.json"); err != nil {
+		fmt.Println("Error marshalling sync.Map to JSON:", err)
+		return
+	}
+
 }
 
-func updatePositionsToFilled(orderResp OrderResponse, costBasis, quantity float64) {
+func updatePositionsToFilled(orderResp OrderResponse, costBasis float64, quantity int) {
 	fmt.Println("Updating Positions for Filled Order")
 	positionId := fmt.Sprintf("%s-%s", orderResp.Order.Trade.StrategyName, orderResp.Order.Trade.Symbol)
+	posAdj := 1
+	if orderResp.Order.Trade.Side == "SELL" {
+		posAdj = -1
+	}
+	status := "filled"
+	positionMap, ok := positions.Load(positionId)
+	if ok {
+		pos, ok := positionMap.(definitions.Position)
+		if ok {
+
+			fmt.Print("Position Map", pos)
+			quantity += (posAdj * pos.Quantity)
+
+		}
+
+	}
+	if quantity == 0.0 {
+		status = "closed"
+	}
+
 	positions.Store(positionId, definitions.Position{
 		Symbol:     orderResp.Order.Trade.Symbol,
 		Exchange:   orderResp.Order.Trade.Exchange,
-		Quantity:   quantity,
+		Quantity:   quantity, // * float64(posAdj),
 		CostBasis:  costBasis,
 		Datetime:   time.Now().String(),
 		ContractID: int(orderResp.Order.Trade.ContractId),
-		Status:     "filled",
+		Status:     status,
 	})
+
+	// Marshal to JSON file
+	if err := SyncMapToJSONFile(&positions, "../positions.json"); err != nil {
+		fmt.Println("Error marshalling sync.Map to JSON:", err)
+		return
+	}
+
 }
+
+// SyncMapFromJSONFile unmarshals a JSON file into a sync.Map.
+func SyncMapFromJSONFile(m *sync.Map, filename string) error {
+	// alternative here:https://stackoverflow.com/questions/46390409/how-to-decode-json-strings-to-sync-map-instead-of-normal-map-in-go1-9
+
+	byteValue, err := ioutil.ReadFile(filename)
+	if err != nil || len(byteValue) == 0 {
+		return err
+	}
+
+	normalMap := make(map[string]interface{})
+	// Unmarshal JSON data into a slice of Trade structs
+	err = json.Unmarshal(byteValue, &normalMap)
+	if err != nil {
+		return err
+	}
+
+	// Store each key-value pair back into the sync.Map
+	for k, v := range normalMap {
+		vpos, ok := v.(definitions.Position)
+		if !ok {
+			fmt.Println("Error loading position from JSON -->", v)
+			continue
+		}
+		m.Store(k, vpos)
+	}
+	return nil
+}
+
+// SyncMapToJSONFile marshals a sync.Map to a JSON file.
+func SyncMapToJSONFile(m *sync.Map, filename string) error {
+
+	normalMap := make(map[string]interface{})
+	// Convert sync.Map to a normal map
+	m.Range(func(key, value interface{}) bool {
+		strKey, ok := key.(string)
+		if !ok {
+			// If keys are not strings, you may choose how to handle it.
+			// Here we skip non-string keys.
+			return true
+		}
+		normalMap[strKey] = value
+		return true
+	})
+
+	// Write updated data back to file
+	data, err := json.MarshalIndent(normalMap, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	if err := ioutil.WriteFile(filename, data, 0644); err != nil {
+		// fmt.Println("Error writing to file:", err)
+		return err
+	}
+	return nil
+}
+
+var tradeChannel = make(chan *pb.Trade, 100) // Buffered channel for trades
+type poolFunction func(int)
+
+var positions sync.Map //
+
 func main() {
+	// Clear the original map to demonstrate loading from file
+	// sm = sync.Map{}
+
+	// Unmarshal from JSON file
+	if err := SyncMapFromJSONFile(&positions, "../positions.json"); err != nil {
+		fmt.Println("Error unmarshalling JSON to sync.Map:", err)
+		return
+	}
 	// Start the trade processing worker
 	startWorkerPool(5, processNewTrades)
 	// Start the trade processing worker

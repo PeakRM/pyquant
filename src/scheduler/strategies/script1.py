@@ -1,7 +1,7 @@
 import pandas_market_calendars as mcal
 import datetime
 import pandas as pd
-from typing import Dict, Union, Literal, Any
+from typing import Dict, Union, Literal, Any, List
 from pydantic import BaseModel
 import sys
 import requests
@@ -84,9 +84,38 @@ def run(account_data: AccountData, market1:str):
     logger.info(f"pys3: {json.dumps(trades[0].model_dump())}")
     return trades
 
-def generate_test_trade():
-    return  [Trade(strategy_name=STRATEGY_NAME,
-                        symbol='MES',
+def check_position(symbol)->str:
+    with open("../../positions.json",'r') as position_file:
+        positions = json.load(position_file)
+    
+    try:
+        strategy_position = positions[f"{STRATEGY_NAME}-{symbol}"]
+        position_status = strategy_position['status'].lower() 
+    except KeyError:
+        print("no position found in file")
+        position_status=""
+    return  position_status
+
+def generate_test_trade() -> List[Trade]:
+    symbol="MES"
+    position_status = check_position(symbol=symbol)
+    
+    if position_status == "filled":
+
+        return  [Trade(strategy_name=STRATEGY_NAME,
+                        symbol=symbol,
+                         contract_id=99999999,
+                         exchange='cme',
+                         side='SELL',
+                        quantity=1)] 
+    elif position_status == "pending":
+        return []
+    else:
+        # no open position
+        print(position_status)
+
+        return  [Trade(strategy_name=STRATEGY_NAME,
+                        symbol=symbol,
                          contract_id=99999999,
                          exchange='cme',
                         side='BUY',
@@ -128,6 +157,7 @@ if __name__ == "__main__":
             #                 "buying_power":16307.37
             #                 }) ,market1="SPY")
             trade = generate_test_trade()
+            print(trade)
 
             if trade:
                 try:

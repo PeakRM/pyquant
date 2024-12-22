@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Strategy Toggle</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: sans-serif;
+      background: #f4f4f4;
+      color: #333;
+    }
+    h1 {
+      text-align: center;
+      margin-top: 20px;
+    }
+    .strategy {
+      background: #fff;
+      margin: 10px auto;
+      width: 80%;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+    .strategy-header {
+      background: #eee;
+      padding: 10px 20px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .strategy-body {
+      display: none;
+      padding: 10px 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    th, td {
+      padding: 8px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+    }
+    button {
+      padding: 5px 8px;
+      background: #ccc;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-right: 5px;
+    }
+    button:hover {
+      background: #aaa;
+    }
+  </style>
+</head>
+<body>
+  <h1>Strategy Toggle Demo</h1>
+  <div id="container"></div>
+
+  <script>
+    async function fetchStrategies() {
+      const res = await fetch('/strategies');
+      const data = await res.json();
+      renderStrategies(data);
+    }
+
+    function renderStrategies(strategies) {
+      const container = document.getElementById('container');
+      container.innerHTML = '';
+
+      for (const strategyName in strategies) {
+        const strategyObj = strategies[strategyName];
+
+        const stratDiv = document.createElement('div');
+        stratDiv.className = 'strategy';
+
+        // Collapsible header
+        const header = document.createElement('div');
+        header.className = 'strategy-header';
+        header.innerText = `${strategyName} (${strategyObj.strategy_type})`;
+        header.onclick = () => {
+          const body = stratDiv.querySelector('.strategy-body');
+          body.style.display = (body.style.display === 'none') ? 'block' : 'none';
+        };
+        stratDiv.appendChild(header);
+
+        // Body
+        const body = document.createElement('div');
+        body.className = 'strategy-body';
+        body.style.display = 'none'; // collapsed by default
+
+        // Table of setups
+        const table = document.createElement('table');
+        const thead = document.createElement('thead');
+        thead.innerHTML = `
+          <tr>
+            <th>Setup Name</th>
+            <th>Market</th>
+            <th>Active</th>
+            <th>Timeframe</th>
+            <th>Schedule</th>
+            <th>Actions</th>
+          </tr>
+        `;
+        table.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        for (const setupName in strategyObj.setups) {
+          const setup = strategyObj.setups[setupName];
+
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${setupName}</td>
+            <td>${setup.market}</td>
+            <td>${setup.active}</td>
+            <td>${setup.timeframe}</td>
+            <td>${setup.schedule}</td>
+            <td>
+              <button onclick="toggleSetup('${strategyName}', '${setupName}')">
+                ${!setup.active?"Resume": "Pause" }
+              </button>
+            </td>
+          `;
+          tbody.appendChild(row);
+        }
+        table.appendChild(tbody);
+        body.appendChild(table);
+        stratDiv.appendChild(body);
+
+        container.appendChild(stratDiv);
+      }
+    }
+
+    async function toggleSetup(strategyName, setupName) {
+      await fetch(`/strategies/${strategyName}/${setupName}/toggle`, { method: 'POST' });
+      // Re-fetch to update the UI with the new 'active' state
+      fetchStrategies();
+    }
+
+    // On load
+    fetchStrategies();
+  </script>
+</body>
+</html>
