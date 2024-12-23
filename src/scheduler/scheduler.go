@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -101,6 +102,7 @@ func handleListStrategies(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(strategies)
+	fmt.Println("strategies")
 }
 
 // handleStrategyActions handles requests like:
@@ -216,6 +218,7 @@ func startScript(scriptPath, strategyName, setupName string) error {
 	if err := cmd.Start(); err != nil {
 		return err
 	}
+	fmt.Println("Running", scriptPath)
 
 	runningMu.Lock()
 	runningProcs[key] = cmd
