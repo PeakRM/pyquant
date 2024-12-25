@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sync"
 )
 
@@ -205,7 +206,23 @@ func startScript(scriptPath, strategyName, setupName string) error {
 	}
 	runningMu.Unlock()
 
-	cmd := exec.Command("python3", scriptPath)
+	venvPythonPath := "/home/codespace/.python/current/bin/python3"
+
+	// First, verify the Python interpreter and the script exist
+	if err := checkPythonAndScript(venvPythonPath, scriptPath); err != nil {
+		ex, err := os.Getwd()
+		if err != nil {
+			panic(err)
+		}
+		exPath := filepath.Dir(ex)
+		fmt.Println(exPath)
+		fmt.Println(err)
+		return err
+
+	}
+
+	cmd := exec.Command(venvPythonPath, scriptPath)
+	fmt.Println(cmd.Process)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return err
@@ -239,6 +256,23 @@ func stopScript(strategyName, setupName string) {
 	}
 	_ = cmd.Process.Kill() // ignoring error for brevity
 	delete(runningProcs, key)
+}
+
+// pathExists checks whether a given file path exists.
+func pathExists(path string) bool {
+	_, err := os.Stat(path)
+	return !os.IsNotExist(err)
+}
+
+// checkPythonAndScript verifies the Python executable and script are present.
+func checkPythonAndScript(venvPythonPath, scriptPath string) error {
+	if !pathExists(venvPythonPath) {
+		return fmt.Errorf("python interpreter not found at path: %s", venvPythonPath)
+	}
+	if !pathExists(scriptPath) {
+		return fmt.Errorf("python script not found at path: %s", scriptPath)
+	}
+	return nil
 }
 
 // -----------------------------------------------------------------
