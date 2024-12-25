@@ -1731,7 +1731,7 @@ func updatePositionsToPending(orderResp OrderResponse) {
 		Status:     "pending",
 	})
 	// Marshal to JSON file
-	if err := SyncMapToJSONFile(&positions, "../positions.json"); err != nil {
+	if err := SyncMapToJSONFile(&positions, "/positions.json"); err != nil {
 		fmt.Println("Error marshalling sync.Map to JSON:", err)
 		return
 	}
@@ -1772,7 +1772,7 @@ func updatePositionsToFilled(orderResp OrderResponse, costBasis float64, quantit
 	})
 
 	// Marshal to JSON file
-	if err := SyncMapToJSONFile(&positions, "../positions.json"); err != nil {
+	if err := SyncMapToJSONFile(&positions, "/positions.json"); err != nil {
 		fmt.Println("Error marshalling sync.Map to JSON:", err)
 		return
 	}
@@ -1846,7 +1846,7 @@ func main() {
 	// sm = sync.Map{}
 
 	// Unmarshal from JSON file
-	if err := SyncMapFromJSONFile(&positions, "../positions.json"); err != nil {
+	if err := SyncMapFromJSONFile(&positions, "/positions.json"); err != nil {
 		fmt.Println("Error unmarshalling JSON to sync.Map:", err)
 		return
 	}
