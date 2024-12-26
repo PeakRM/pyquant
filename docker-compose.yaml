@@ -6,9 +6,11 @@ services:
       context: ./src/backend
     container_name: backend
     ports:
-      - "50051:50051" # gRPC port
+      - "50051:50051"
     environment:
-      - ENV_FILE=.env
+      - SHARED_PATH=/shared    
+    volumes:
+      - ./shared_files:/shared
     networks:
       - project_network
 
@@ -19,7 +21,9 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - ENV_FILE=.env
+      - SHARED_PATH=/shared
+    volumes:
+      - ./shared_files:/shared
     networks:
       - project_network
 
@@ -27,10 +31,14 @@ services:
     build:
       context: ./src/scheduler
     container_name: scheduler
+    ports:
+      - "8080:8080"
     depends_on:
       - broker_api
     environment:
-      - ENV_FILE=.env
+      - SHARED_PATH=/shared 
+    volumes:
+      - ./shared_files:/shared      
     networks:
       - project_network
 

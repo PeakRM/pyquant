@@ -13,6 +13,9 @@ FROM python:3.12.1
 
 WORKDIR /app
 COPY --from=builder /app/scheduler /scheduler
+COPY --from=builder /app/static /app/static
+COPY --from=builder /app/strategies /app/strategies
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 

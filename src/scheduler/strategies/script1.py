@@ -85,7 +85,7 @@ def run(account_data: AccountData, market1:str):
     return trades
 
 def check_position(symbol)->str:
-    with open("../../positions.json",'r') as position_file:
+    with open("/shared/positions.json",'r') as position_file:
         positions = json.load(position_file)
     
     try:

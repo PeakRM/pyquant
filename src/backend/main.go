@@ -1518,7 +1518,8 @@ func (s *server) SendTrade(ctx context.Context, trade *pb.Trade) (*pb.TradeRespo
 
 // Function to send a GET request to localhost:8081/api/[contract_id] and retrieve the price
 func fetchPriceQuote(contractID int32, exchange string) (float64, error) {
-	url := fmt.Sprintf("http://127.0.0.1:8000/quoteByConId?conId=%d&exchange=%s", contractID, exchange)
+	// url := fmt.Sprintf("http://127.0.0.1:8000/quoteByConId?conId=%d&exchange=%s", contractID, exchange)
+	url := fmt.Sprintf("http://broker_api:8000/quoteByConId?conId=%d&exchange=%s", contractID, exchange)
 	resp, err := http.Get(url)
 	if err != nil {
 		fmt.Println("Error sending GET request:", err)
@@ -1549,7 +1550,8 @@ func transmitOrder(order Order, testTrade bool) (int, error) {
 		fmt.Println("Test Trade --> ")
 		return rand.Intn(1000), nil
 	}
-	url := "http://127.0.0.1:8000/placeLimitOrder?broker=IB"
+	// url := "http://127.0.0.1:8000/placeLimitOrder?broker=IB"
+	url := "http://broker_api:8000/placeLimitOrder?broker=IB"
 	orderJSON, err := json.Marshal(order)
 	if err != nil {
 		fmt.Println("Error marshaling order to JSON:", err)
@@ -1616,7 +1618,7 @@ func processNewTrades(workerId int) {
 				continue
 			}
 
-			fmt.Println("curr_pos:")
+			fmt.Println("curr_pos:", current_pos)
 			open := 1.
 			// an open position is postive
 			// check if we have a selling order
@@ -1682,7 +1684,8 @@ func monitorFill(orderResp OrderResponse) {
 	isFilled := false
 	for !isFilled {
 
-		url := fmt.Sprintf("http://127.0.0.1:8000/fills?Id=%d", orderResp.OrderId)
+		// url := fmt.Sprintf("http://127.0.0.1:8000/fills?Id=%d", orderResp.OrderId)
+		url := fmt.Sprintf("http://broker_api:8000/fills?Id=%d", orderResp.OrderId)
 		resp, err := http.Get(url)
 		if err != nil {
 			fmt.Println("Error sending GET request:", err)
@@ -1731,7 +1734,7 @@ func updatePositionsToPending(orderResp OrderResponse) {
 		Status:     "pending",
 	})
 	// Marshal to JSON file
-	if err := SyncMapToJSONFile(&positions, "/positions.json"); err != nil {
+	if err := SyncMapToJSONFile(&positions, "/shared/positions.json"); err != nil {
 		fmt.Println("Error marshalling sync.Map to JSON:", err)
 		return
 	}
@@ -1772,7 +1775,7 @@ func updatePositionsToFilled(orderResp OrderResponse, costBasis float64, quantit
 	})
 
 	// Marshal to JSON file
-	if err := SyncMapToJSONFile(&positions, "/positions.json"); err != nil {
+	if err := SyncMapToJSONFile(&positions, "/shared/positions.json"); err != nil {
 		fmt.Println("Error marshalling sync.Map to JSON:", err)
 		return
 	}
@@ -1846,7 +1849,7 @@ func main() {
 	// sm = sync.Map{}
 
 	// Unmarshal from JSON file
-	if err := SyncMapFromJSONFile(&positions, "/positions.json"); err != nil {
+	if err := SyncMapFromJSONFile(&positions, "/shared/positions.json"); err != nil {
 		fmt.Println("Error unmarshalling JSON to sync.Map:", err)
 		return
 	}

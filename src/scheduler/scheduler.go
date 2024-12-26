@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"sync"
 )
 
@@ -48,7 +47,7 @@ var (
 
 func main() {
 	// 1. Load from JSON
-	if err := loadStrategies("strategy-config.json"); err != nil {
+	if err := loadStrategies("/shared/strategy-config.json"); err != nil {
 		log.Fatalf("Failed to load strategies: %v", err)
 	}
 
@@ -79,6 +78,7 @@ func loadStrategies(filePath string) error {
 		return err
 	}
 	strategies = temp
+	fmt.Println(strategies)
 	return nil
 }
 
@@ -103,7 +103,7 @@ func handleListStrategies(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(strategies)
-	fmt.Println("strategies")
+	// fmt.Println("strategies")
 }
 
 // handleStrategyActions handles requests like:
@@ -184,7 +184,7 @@ func toggleSetup(strategyName, setupName string, w http.ResponseWriter, r *http.
 	strategies[strategyName] = strat
 
 	// 4) Persist to JSON
-	if err := saveStrategies("strategy-config.json"); err != nil {
+	if err := saveStrategies("/shared/strategy-config.json"); err != nil {
 		http.Error(w, "Failed to save config: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -206,19 +206,16 @@ func startScript(scriptPath, strategyName, setupName string) error {
 	}
 	runningMu.Unlock()
 
-	venvPythonPath := "/home/codespace/.python/current/bin/python3"
+	venvPythonPath := "/usr/local/bin/python"
 
 	// First, verify the Python interpreter and the script exist
 	if err := checkPythonAndScript(venvPythonPath, scriptPath); err != nil {
-		ex, err := os.Getwd()
-		if err != nil {
-			panic(err)
-		}
-		exPath := filepath.Dir(ex)
-		fmt.Println(exPath)
 		fmt.Println(err)
+		// ex, err := os.Getwd()
+		// if err != nil {
+		// 	panic(err)
+		// }
 		return err
-
 	}
 
 	cmd := exec.Command(venvPythonPath, scriptPath)

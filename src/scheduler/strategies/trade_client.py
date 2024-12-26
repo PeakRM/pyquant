@@ -7,7 +7,8 @@ from definitions import Trade as TradeInstruction
 
 def send_trade(trade: TradeInstruction) -> None:
     # Connect to the server
-    channel = grpc.insecure_channel('localhost:50051')
+    # channel = grpc.insecure_channel('localhost:50051') # for local development
+    channel = grpc.insecure_channel('backend:50051') # for docker container  with service "backend"
     stub = trade_pb2_grpc.TradeServiceStub(channel)
 
     # Create a Trade message
