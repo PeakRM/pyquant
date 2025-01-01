@@ -1470,7 +1470,6 @@ import (
 	"pytrader/definitions"
 	pb "pytrader/tradepb"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -1618,26 +1617,9 @@ func processNewTrades(workerId int) {
 				continue
 			}
 
-			fmt.Println("curr_pos:", current_pos)
-			open := 1.
-			// an open position is postive
-			// check if we have a selling order
-			if trade.Side == "SELL" {
-				// if so switch sign of order
-				open = -1.
-			}
-			//convert trade quantity from string to float64
-			q, err := strconv.ParseFloat(strings.TrimSpace(trade.Quantity), 64)
-			if err != nil {
-				// if it errors, you're fucked
-				fmt.Println("shit ", err)
+			if current_pos.Status == "pending" {
+				fmt.Printf("%sPending order exists, trade skipped: %s - %s - %t \n", workerInfo, trade, i, ok)
 				continue
-			}
-			// check if the direction of the new trade (open*quantity) is equal to the dirction of the current position.
-			if math.Signbit(open*q) == math.Signbit(float64(current_pos.Quantity)) {
-				// if so, skip the trade because we have an open position
-				fmt.Println(open, q, current_pos.Quantity)
-				fmt.Printf("%sOpen/Pending order exists, trade skipped: %s - %s - %t \n", workerInfo, trade, i, ok)
 			}
 		}
 
@@ -1724,15 +1706,29 @@ func monitorFill(orderResp OrderResponse) {
 func updatePositionsToPending(orderResp OrderResponse) {
 	fmt.Println("Updating Positions for Pending Order")
 	positionId := fmt.Sprintf("%s-%s", orderResp.Order.Trade.StrategyName, orderResp.Order.Trade.Symbol)
-	positions.Store(positionId, definitions.Position{
-		Symbol:     orderResp.Order.Trade.Symbol,
-		Exchange:   orderResp.Order.Trade.Exchange,
-		Quantity:   0,
-		CostBasis:  0.0,
-		Datetime:   time.Now().String(),
-		ContractID: int(orderResp.Order.Trade.ContractId),
-		Status:     "pending",
-	})
+
+	p, ok := positions.Load(positionId)
+	if !ok {
+		fmt.Println("Positon does not exist")
+
+		positions.Store(positionId, definitions.Position{
+			Symbol:     orderResp.Order.Trade.Symbol,
+			Exchange:   orderResp.Order.Trade.Exchange,
+			Quantity:   0.0,
+			CostBasis:  0.0,
+			Datetime:   time.Now().String(),
+			ContractID: int(orderResp.Order.Trade.ContractId),
+			Status:     "pending",
+		})
+	} else {
+		p, _ := p.(definitions.Position)
+		if !ok {
+			fmt.Println("Could not assert Position type on p:", p)
+		}
+		p.Status = "pending"
+		positions.Store(positionId, p)
+	}
+
 	// Marshal to JSON file
 	if err := SyncMapToJSONFile(&positions, "/shared/positions.json"); err != nil {
 		fmt.Println("Error marshalling sync.Map to JSON:", err)
@@ -1744,10 +1740,6 @@ func updatePositionsToPending(orderResp OrderResponse) {
 func updatePositionsToFilled(orderResp OrderResponse, costBasis float64, quantity int) {
 	fmt.Println("Updating Positions for Filled Order")
 	positionId := fmt.Sprintf("%s-%s", orderResp.Order.Trade.StrategyName, orderResp.Order.Trade.Symbol)
-	posAdj := 1
-	if orderResp.Order.Trade.Side == "SELL" {
-		posAdj = -1
-	}
 	status := "filled"
 	positionMap, ok := positions.Load(positionId)
 	if ok {
@@ -1755,7 +1747,7 @@ func updatePositionsToFilled(orderResp OrderResponse, costBasis float64, quantit
 		if ok {
 
 			fmt.Print("Position Map", pos)
-			quantity += (posAdj * pos.Quantity)
+			quantity += pos.Quantity
 
 		}
 
@@ -1802,7 +1794,7 @@ func SyncMapFromJSONFile(m *sync.Map, filename string) error {
 	for k, v := range normalMap {
 		vpos, ok := v.(definitions.Position)
 		if !ok {
-			fmt.Println("Error loading position from JSON -->", v)
+			fmt.Println("Error asserting Position from JSON -->", ok, v)
 			continue
 		}
 		m.Store(k, vpos)
