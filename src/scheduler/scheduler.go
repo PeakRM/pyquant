@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"time"
 )
 
 // -----------------------------------------------------------------
@@ -31,9 +32,19 @@ type Strategy struct {
 	StrategyType string           `json:"strategy_type"`
 	Setups       map[string]Setup `json:"setups"`
 }
+type Position struct {
+	Symbol     string  `json:"symbol"`
+	Exchange   string  `json:"exchange"`
+	Quantity   int     `json:"quantity"`
+	CostBasis  float64 `json:"cost_basis"`
+	Datetime   string  `json:"datetime"`
+	ContractID int     `json:"contract_id"`
+	Status     string  `json:"status"`
+}
 
 // strategies is a map of "StrategyName" -> Strategy
 var strategies map[string]Strategy
+var positions map[string]Position
 
 // Keep track of running processes by "StrategyName|SetupName"
 var (
@@ -55,6 +66,8 @@ func main() {
 	http.HandleFunc("/strategies", handleListStrategies)
 	// e.g. POST /strategies/{strategyName}/{setupName}/toggle
 	http.HandleFunc("/strategies/", handleStrategyActions)
+	// handle positions
+	http.HandleFunc("/streamPositions", positionStreamHandler)
 
 	// 3. Serve frontend from ./static/
 	http.Handle("/", http.FileServer(http.Dir("./static")))
@@ -91,6 +104,20 @@ func saveStrategies(filePath string) error {
 	return os.WriteFile(filePath, data, 0644)
 }
 
+func loadPositions(filePath string) error {
+	data, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		return err
+	}
+	temp := make(map[string]Position)
+	if err := json.Unmarshal(data, &temp); err != nil {
+		return err
+	}
+	positions = temp
+	fmt.Println(positions)
+	return nil
+}
+
 // -----------------------------------------------------------------
 // Handlers
 // -----------------------------------------------------------------
@@ -104,6 +131,47 @@ func handleListStrategies(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(strategies)
 	// fmt.Println("strategies")
+}
+
+// handlePositionData GET /strategies -> returns entire position map as JSON
+func positionStreamHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-ticker.C:
+			if err := loadPositions("/shared/positions.json"); err != nil {
+				log.Fatalf("Failed to load positions: %v", err)
+				continue
+			}
+			// Marshal positions into JSON
+			data, err := json.Marshal(positions)
+			if err != nil {
+				log.Printf("Failed to marshal positions: %v", err)
+				continue
+			}
+			// SSE requires the "data:" prefix + double newline
+			fmt.Fprintf(w, "data: %s\n\n", data)
+			if flusher, ok := w.(http.Flusher); ok {
+				flusher.Flush()
+			}
+		}
+	}
+
+	// 	if r.Method != http.MethodGet {
+	// 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	// 		return
+	// 	}
+	// 	w.Header().Set("Content-Type", "application/json")
+	// 	json.NewEncoder(w).Encode(positions)
+	// 	// fmt.Println("strategies")
 }
 
 // handleStrategyActions handles requests like:
@@ -218,7 +286,7 @@ func startScript(scriptPath, strategyName, setupName string) error {
 		return err
 	}
 
-	cmd := exec.Command(venvPythonPath, scriptPath)
+	cmd := exec.Command(venvPythonPath, scriptPath, setupName)
 	fmt.Println(cmd.Process)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -232,7 +300,7 @@ func startScript(scriptPath, strategyName, setupName string) error {
 	if err := cmd.Start(); err != nil {
 		return err
 	}
-	fmt.Println("Running", scriptPath)
+	fmt.Println("Running", scriptPath, setupName)
 
 	runningMu.Lock()
 	runningProcs[key] = cmd

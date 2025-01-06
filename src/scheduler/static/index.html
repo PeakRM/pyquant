@@ -63,10 +63,26 @@ import { Grid } from 'ag-grid-community';
     async function fetchStrategies() {
       const res = await fetch('/strategies');
       const strategies = await res.json();
-      renderGrids(strategies);
+      renderGrids(strategies);//, positions);
+      
+    }
+    async function fetchPositions(){
+        await fetch("/positions")
+        .then((res) => {
+          if (!res.ok){
+            throw new Error (`HTTP error! Status: ${res.status}`);
+          }
+          return res.json();
+        })
+        .then((data)=> {
+          console.log(data);
+          return data;
+        })
+        .catch((error) => console.error("unable to fetchg data:", error));
     }
 
     // 2. Render one AG Grid per strategy
+    const gridApiMap = {}; // key = strategyName, value = the gridApi
     function renderGrids(strategies) {
       const container = document.getElementById('grids-container');
       container.innerHTML = ''; // Clear old contents
@@ -99,13 +115,15 @@ import { Grid } from 'ag-grid-community';
         const rowData = [];
         for (const setupName in strategyObj.setups) {
           const setup = strategyObj.setups[setupName];
+          let qty = 0;
           rowData.push({
             strategyName: strategyName,
             setupName: setupName,
             market: setup.market,
             active: setup.active,
             timeframe: setup.timeframe,
-            schedule: setup.schedule
+            schedule: setup.schedule,
+            openPosition:  qty,
           });
         }
         console.log(rowData)
@@ -116,10 +134,9 @@ import { Grid } from 'ag-grid-community';
           { headerName: 'Active', field: 'active', flex: 1 },
           { headerName: 'Timeframe', field: 'timeframe', flex: 1 },
           { headerName: 'Schedule', field: 'schedule', flex: 1 },
+          { headerName: 'Open Position', field: 'openPosition', flex: 1 },
           {
-            headerName: 'Actions',
-            field: 'actions',
-            flex: 1,
+            headerName: 'Actions', field: 'actions', flex: 1,
             // Use a custom cell renderer for the toggle button
             cellRenderer: (params) => {
               const container = document.createElement('div');
@@ -139,19 +156,46 @@ import { Grid } from 'ag-grid-community';
         ];
 
         // Create the grid
-        agGrid.createGrid(gridDiv, {
-          columnDefs: columnDefs,
-          rowData: rowData,
-          defaultColDef: {
-            resizable: true,
-            sortable: true,
-            filter: true
-          },
-          animateRows: true
+        const api = agGrid.createGrid(gridDiv, {
+                    columnDefs: columnDefs,
+                    rowData: rowData,
+                    defaultColDef: {
+                      resizable: true,
+                      sortable: true,
+                      filter: true
+                    },
+                    animateRows: true,
+                getRowId: (params) => params.data.setupName, // Tell AG Grid how to identify each row
         });
+        gridApiMap[strategyName] = api;
+      }
+    };
+
+    const source = new EventSource('/streamPositions');
+
+    // Handle incoming SSE messages
+    source.onmessage = (event) => {
+      const positions = JSON.parse(event.data);
+      console.log(positions);
+      for (const setupName in positions) {
+        const strategyName = setupName.split("-")[0];
+        const strategyGridApi = gridApiMap[strategyName];
+        // const setups = positions[strategyName];
+        console.log(strategyName);
+        console.log(gridApiMap);
+        console.log(strategyGridApi);
+        // console.log(setups);
+        if (strategyGridApi) {
+          const rowNode = strategyGridApi.getRowNode(setupName);
+          console.log(rowNode);
+          if (rowNode) {
+            console.log("Setting value for: ", positions[setupName]);
+            rowNode.setDataValue('openPosition', positions[setupName].quantity);
+          }
+        }
       }
     }
-
+  
     // 3. Toggle a setup by calling the backend endpoint
     async function toggleSetup(strategyName, setupName) {
       await fetch(`/strategies/${strategyName}/${setupName}/toggle`, { method: 'POST' });
