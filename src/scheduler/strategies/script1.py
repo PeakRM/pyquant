@@ -10,7 +10,7 @@ import json
 from definitions import *
 import logging
 import trade_client
-
+from config import load_and_parse_config
 
 import datetime as dt
 import time
@@ -96,16 +96,15 @@ def check_position(symbol)->str:
         position_status=""
     return  position_status
 
-def generate_test_trade() -> List[Trade]:
-    symbol="MES"
+def generate_test_trade(symbol:str, exchange:str) -> List[Trade]:
     position_status = check_position(symbol=symbol)
     
     if position_status == "filled":
 
         return  [Trade(strategy_name=STRATEGY_NAME,
                         symbol=symbol,
-                         contract_id=99999999,
-                         exchange='cme',
+                         contract_id=99999999, # TODO - ADD THIS FIELD TO STRATEGY CONFIG
+                         exchange=exchange,
                          side='SELL',
                         quantity=1)] 
     elif position_status == "pending":
@@ -117,7 +116,7 @@ def generate_test_trade() -> List[Trade]:
         return  [Trade(strategy_name=STRATEGY_NAME,
                         symbol=symbol,
                          contract_id=99999999,
-                         exchange='cme',
+                         exchange=exchange,
                         side='BUY',
                         quantity=1)]  
 
@@ -139,12 +138,23 @@ def is_within_est_business_hours() -> bool:
     # Check if current time is within the range
     return start_time <= now_est.time() <= end_time
 
+def initialize(config_data):
+    mkt = config_data["market"].split(":")
+    strategy_settings = {}
+    strategy_settings["exchange"] = mkt[0]
+    strategy_settings["symbol"] = mkt[1]
+    return strategy_settings
+
 
 if __name__ == "__main__":
 
+    setup_name = sys.argv[1]
+    config_data = load_and_parse_config("/shared/strategy-config.json", setup_name=setup_name)
+    strategy_settings = initialize(config_data)
     while True:
 
-        if is_within_est_business_hours():
+        # if is_within_est_business_hours():
+        if True:
 
             # trade=run(account_data=AccountData(**{
             #                 "position":{
@@ -156,7 +166,8 @@ if __name__ == "__main__":
             #                 "contract_id":654503314},
             #                 "buying_power":16307.37
             #                 }) ,market1="SPY")
-            trade = generate_test_trade()
+            trade = generate_test_trade(symbol=strategy_settings['symbol'],
+                                        exchange=strategy_settings['exchange'])
             print(trade)
 
             if trade:
