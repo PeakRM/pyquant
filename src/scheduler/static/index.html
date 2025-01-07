@@ -40,20 +40,150 @@ https://cdn.jsdelivr.net/npm/ag-grid-community@33.0.3/styles/ag-grid.min.css
 
 <body class="min-h-screen bg-gradient-to-br from-gray-100 via-white to-gray-200 text-gray-800">
   <header class="py-6 shadow bg-white mb-4">
-    <h1 class="text-center text-3xl font-bold">Strategy Toggle Demo (AG Grid)</h1>
+    <h1 class="text-center text-3xl font-bold">pyQuant Dashboard</h1>
   </header>
 
   <main class="max-w-4xl mx-auto p-4">
     <p class="mb-6 text-gray-600">
-      Below is a list of your strategies, each rendered as an AG Grid. Toggle them on or off with the button.
+      Below is a list of  strategies. Toggle them on or off with the button.
     </p>
+
+  <!-- Add New Block Button -->
+  <button 
+    id="addBlockBtn" 
+    class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+  >
+    Add New Strategy
+  </button>
+
+  <!-- Modal Overlay -->
+  <div 
+    id="modalOverlay"
+    class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50"
+  >
+    <!-- Modal Content -->
+    <div 
+      id="modalContent"
+      class="bg-white p-6 rounded shadow max-w-sm w-full relative"
+    >
+      <!-- Close Button -->
+      <button 
+        id="closeModal" 
+        class="absolute top-2 right-2 text-gray-700 font-bold text-xl"
+      >
+        &times;
+      </button>
+
+      <h2 class="text-xl font-semibold mb-4">Add New Strategy</h2>
+
+      <!-- Form -->
+      <form id="blockForm" class="space-y-4">
+        <!-- File Upload -->
+        <div>
+          <label class="block font-medium mb-1" for="fileInput">Upload File</label>
+          <input 
+            class="block w-full border rounded" 
+            type="file" 
+            id="fileInput" 
+            name="uploaded_file"
+          />
+        </div>
+        
+        <div>
+          <label class="block font-medium mb-1" for="strategyName">Strategy Name</label>
+          <input 
+            class="block w-full border rounded p-1" 
+            type="text" 
+            id="strategyName" 
+            name="strategyName"
+          />
+        </div>
+        
+        <!-- Type Dropdown -->
+        <div>
+          <label class="block font-medium mb-1" for="typeSelect">Type</label>
+          <select 
+            class="block w-full border rounded p-1" 
+            id="typeSelect" 
+            name="type"
+          >
+            <option value="Rebalance">Rebalance</option>
+            <option value="Alpha">Alpha</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <!-- Initial Setup Section -->
+        <h3 class="font-semibold text-lg">Initial Setup</h3>
+
+        <div>
+          <label class="block font-medium mb-1" for="setupName">Setup Name</label>
+          <input 
+            class="block w-full border rounded p-1" 
+            type="text" 
+            id="setupName" 
+            name="setupName"
+          />
+        </div>
+        
+        <div>
+          <label class="block font-medium mb-1" for="market">Market</label>
+          <input 
+            class="block w-full border rounded p-1" 
+            type="text" 
+            id="market" 
+            name="market"
+          />
+        </div>
+        
+        <div>
+          <label class="block font-medium mb-1" for="timeframe">Timeframe</label>
+          <input 
+            class="block w-full border rounded p-1" 
+            type="text" 
+            id="timeframe" 
+            name="timeframe"
+          />
+        </div>
+        
+        <div>
+          <label class="block font-medium mb-1" for="schedule">Schedule</label>
+          <input 
+            class="block w-full border rounded p-1" 
+            type="text" 
+            id="schedule" 
+            name="schedule"
+          />
+        </div>
+
+        <div>
+          <label class="block font-medium mb-1" for="additionalData">Additional Data</label>
+          <input 
+            class="block w-full border rounded p-1" 
+            type="text" 
+            id="additionalData" 
+            name="additionalData"
+          />
+        </div>
+
+        <!-- Submit Button -->
+        <button 
+          type="submit" 
+          class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+        >
+          Submit
+        </button>
+      </form>
+    </div>
+  </div>
 
     <!-- Container where we dynamically insert a grid per strategy -->
     <div id="grids-container" class="space-y-4"></div>
   </main>
-  <script type="module">
-import { Grid } from 'ag-grid-community';
 
+
+  <script type="module">
+    import { Grid } from 'ag-grid-community';
   </script>
 
   <script>
@@ -203,5 +333,108 @@ import { Grid } from 'ag-grid-community';
       fetchStrategies();
     }
   </script>
+  <script>
+    // Grab elements
+    const addBlockBtn = document.getElementById('addBlockBtn');
+    const modalOverlay = document.getElementById('modalOverlay');
+    const closeModal = document.getElementById('closeModal');
+    const blockForm = document.getElementById('blockForm');
+
+    // Show modal on Add New Block
+    addBlockBtn.addEventListener('click', () => {
+      modalOverlay.classList.remove('hidden');
+      modalOverlay.classList.add('flex');
+    });
+
+    // Hide modal on Close (×)
+    closeModal.addEventListener('click', () => {
+      modalOverlay.classList.remove('flex');
+      modalOverlay.classList.add('hidden');
+    });
+
+    // Hide modal if user clicks outside content
+    window.addEventListener('click', (event) => {
+      if (event.target === modalOverlay) {
+        modalOverlay.classList.remove('flex');
+        modalOverlay.classList.add('hidden');
+      }
+    });
+
+    // Form submission
+    blockForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      // Collect data
+      const file = document.getElementById('fileInput').files[0];
+      const strategyName = document.getElementById('strategyName').value;
+      const typeSelect = document.getElementById('typeSelect').value;
+      const setupName = document.getElementById('setupName').value;
+      const market = document.getElementById('market').value;
+      const timeframe = document.getElementById('timeframe').value;
+      const schedule = document.getElementById('schedule').value;
+      const additionalData = document.getElementById('additionalData').value;
+
+      const formData = new FormData();
+      if (file) formData.append('uploaded_file', file);
+      formData.append('strategyName', strategyName);
+      formData.append('type', typeSelect);
+      formData.append('setupName', setupName);
+      formData.append('market', market);
+      formData.append('timeframe', timeframe);
+      formData.append('schedule', schedule);
+      formData.append('additionalData', additionalData);
+
+      try {
+        const response = await fetch('/uploadNewStrategy', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (response.ok) {
+          alert('Data submitted successfully!');
+          modalOverlay.classList.remove('flex');
+          modalOverlay.classList.add('hidden');
+        } else {
+          alert('Submission failed.');
+        }
+      } catch (error) {
+        console.error(error);
+        alert('An error occurred.');
+      }
+    });
+    fetchStrategies()
+  </script>
+  <script>
+    document.getElementById('uploadForm').addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      const fileInput = document.getElementById('fileInput');
+      const file = fileInput.files[0];
+      if (!file) {
+        alert('Please select a file first.');
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('uploaded_file', file);
+
+      try {
+        const response = await fetch('/upload', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (response.ok) {
+          alert('File uploaded successfully!');
+        } else {
+          alert('Upload failed.');
+        }
+      } catch (error) {
+        console.error(error);
+        alert('Error occurred during upload.');
+      }
+    });
+  </script>
+
 </body>
 </html>

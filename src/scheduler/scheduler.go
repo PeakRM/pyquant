@@ -2,13 +2,17 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -69,6 +73,8 @@ func main() {
 	// handle positions
 	http.HandleFunc("/streamPositions", positionStreamHandler)
 
+	http.HandleFunc("/uploadNewStrategy", newStrategyHandler)
+
 	// 3. Serve frontend from ./static/
 	http.Handle("/", http.FileServer(http.Dir("./static")))
 
@@ -81,13 +87,22 @@ func main() {
 // JSON Loading & Saving
 // -----------------------------------------------------------------
 
-func loadStrategies(filePath string) error {
+func loadStrategyFile(filePath string) (map[string]Strategy, error) {
+	temp := make(map[string]Strategy)
 	data, err := ioutil.ReadFile(filePath)
 	if err != nil {
-		return err
+		return temp, err
 	}
-	temp := make(map[string]Strategy)
 	if err := json.Unmarshal(data, &temp); err != nil {
+		return temp, err
+	}
+	return temp, nil
+
+}
+
+func loadStrategies(filePath string) error {
+	temp, err := loadStrategyFile(filePath)
+	if err != nil {
 		return err
 	}
 	strategies = temp
@@ -139,7 +154,7 @@ func positionStreamHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -164,14 +179,6 @@ func positionStreamHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-
-	// 	if r.Method != http.MethodGet {
-	// 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-	// 		return
-	// 	}
-	// 	w.Header().Set("Content-Type", "application/json")
-	// 	json.NewEncoder(w).Encode(positions)
-	// 	// fmt.Println("strategies")
 }
 
 // handleStrategyActions handles requests like:
@@ -210,6 +217,120 @@ func handleStrategyActions(w http.ResponseWriter, r *http.Request) {
 		toggleSetup(strategyName, setupName, w, r)
 	default:
 		http.Error(w, "Unknown action", http.StatusNotFound)
+	}
+}
+
+// Helper function
+func exists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+	return false, err
+}
+
+func newStrategyHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Parse the incoming multipart/form-data (up to 10MB here)
+	err := r.ParseMultipartForm(10 << 20)
+	if err != nil {
+		http.Error(w, "Error parsing form data", http.StatusBadRequest)
+		return
+	}
+
+	// Grab form fields (non-file)
+	strategyName := r.FormValue("strategyName")
+	typeVal := r.FormValue("type")
+	setupName := r.FormValue("setupName")
+	market := r.FormValue("market")
+	timeframe := r.FormValue("timeframe")
+	schedule := r.FormValue("schedule")
+	additionalData := r.FormValue("additionalData")
+
+	// Grab the file from the form data
+	file, handler, err := r.FormFile("uploaded_file")
+	if err != nil {
+		// The user may or may not have uploaded a file. Handle accordingly.
+		// If a file is required, respond with an error:
+		http.Error(w, "File not found in form data", http.StatusBadRequest)
+		return
+
+		// Or if file is optional, you can just set file=nil and skip storing.
+		// log.Println("[INFO] No file was uploaded.")
+	} else {
+		defer file.Close()
+
+		// Create a local directory (inside container) to store the upload.
+		uploadDir := "/app/strategies"
+		// if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
+		// Check if local directory exists - it should
+		if _, err := exists(uploadDir); err != nil {
+			http.Error(w, "Unable to find directory", http.StatusInternalServerError)
+			return
+		}
+		// 	http.Error(w, "Unable to create upload directory", http.StatusInternalServerError)
+		// 	return
+		// }  if not make it.
+
+		// Build a full path
+		filePath := filepath.Join(uploadDir, handler.Filename)
+		dst, err := os.Create(filePath)
+		if err != nil {
+			http.Error(w, "Unable to create file", http.StatusInternalServerError)
+			return
+		}
+		defer dst.Close()
+
+		// Copy the uploaded file to the created file on disk
+		_, err = io.Copy(dst, file)
+		if err != nil {
+			http.Error(w, "Error saving file", http.StatusInternalServerError)
+			return
+		}
+		log.Printf("[INFO] File uploaded successfully: %s\n", handler.Filename)
+		// (Optional) Do something with these fields—e.g., store them in a DB:
+		log.Printf("[INFO] strategyName=%s, type=%s, setupName=%s, market=%s, timeframe=%s, schedule=%s, additionalData=%s",
+			strategyName, typeVal, setupName, market, timeframe, schedule, additionalData,
+		)
+		addStrategyToConfigFile(filePath, strategyName, typeVal, setupName, market, timeframe, schedule, additionalData)
+	}
+
+	// Return a success response
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintln(w, "Data received and processed!")
+
+}
+
+func addStrategyToConfigFile(scriptPath, strategyName, typeVal, setupName, market, timeframe, schedule, additionalData string) {
+	_, ok := strategies[strategyName]
+	if ok {
+		log.Print("Strategy already exists, select differnt name.")
+		return
+	}
+	setup := Setup{
+		Market:     market,
+		Active:     false,
+		Timeframe:  timeframe,
+		Schedule:   schedule,
+		MarketData: strings.Split(additionalData, ","),
+	}
+	setups := map[string]Setup{setupName: setup}
+	strategies[strategyName] = Strategy{
+		ScriptPath:   scriptPath,
+		StrategyType: typeVal,
+		Setups:       setups,
+	}
+	// 4) Persist to JSON
+	if err := saveStrategies("/shared/strategy-config.json"); err != nil {
+		log.Printf("Failed to save config: " + err.Error())
+		return
 	}
 }
 
