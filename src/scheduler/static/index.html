@@ -180,7 +180,77 @@ https://cdn.jsdelivr.net/npm/ag-grid-community@33.0.3/styles/ag-grid.min.css
     <!-- Container where we dynamically insert a grid per strategy -->
     <div id="grids-container" class="space-y-4"></div>
   </main>
+  <script>
+    // Grab elements
+    const addBlockBtn = document.getElementById('addBlockBtn');
+    const modalOverlay = document.getElementById('modalOverlay');
+    const closeModal = document.getElementById('closeModal');
+    const blockForm = document.getElementById('blockForm');
 
+    // Show modal on Add New Block
+    addBlockBtn.addEventListener('click', () => {
+      modalOverlay.classList.remove('hidden');
+      modalOverlay.classList.add('flex');
+    });
+
+    // Hide modal on Close (×)
+    closeModal.addEventListener('click', () => {
+      modalOverlay.classList.remove('flex');
+      modalOverlay.classList.add('hidden');
+    });
+
+    // Hide modal if user clicks outside content
+    window.addEventListener('click', (event) => {
+      if (event.target === modalOverlay) {
+        modalOverlay.classList.remove('flex');
+        modalOverlay.classList.add('hidden');
+      }
+    });
+
+    // Form submission
+    blockForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      // Collect data
+      const file = document.getElementById('fileInput').files[0];
+      const strategyName = document.getElementById('strategyName').value;
+      const typeSelect = document.getElementById('typeSelect').value;
+      const setupName = document.getElementById('setupName').value;
+      const market = document.getElementById('market').value;
+      const timeframe = document.getElementById('timeframe').value;
+      const schedule = document.getElementById('schedule').value;
+      const additionalData = document.getElementById('additionalData').value;
+
+      const formData = new FormData();
+      if (file) formData.append('uploaded_file', file);
+      formData.append('strategyName', strategyName);
+      formData.append('type', typeSelect);
+      formData.append('setupName', setupName);
+      formData.append('market', market);
+      formData.append('timeframe', timeframe);
+      formData.append('schedule', schedule);
+      formData.append('additionalData', additionalData);
+
+      try {
+        const response = await fetch('/uploadNewStrategy', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (response.ok) {
+          alert('Data submitted successfully!');
+          modalOverlay.classList.remove('flex');
+          modalOverlay.classList.add('hidden');
+        } else {
+          alert('Submission failed.');
+        }
+      } catch (error) {
+        console.error(error);
+        alert('An error occurred.');
+      }
+    });
+    fetchStrategies
+  </script>
 
   <script type="module">
     import { Grid } from 'ag-grid-community';
@@ -333,77 +403,7 @@ https://cdn.jsdelivr.net/npm/ag-grid-community@33.0.3/styles/ag-grid.min.css
       fetchStrategies();
     }
   </script>
-  <script>
-    // Grab elements
-    const addBlockBtn = document.getElementById('addBlockBtn');
-    const modalOverlay = document.getElementById('modalOverlay');
-    const closeModal = document.getElementById('closeModal');
-    const blockForm = document.getElementById('blockForm');
-
-    // Show modal on Add New Block
-    addBlockBtn.addEventListener('click', () => {
-      modalOverlay.classList.remove('hidden');
-      modalOverlay.classList.add('flex');
-    });
-
-    // Hide modal on Close (×)
-    closeModal.addEventListener('click', () => {
-      modalOverlay.classList.remove('flex');
-      modalOverlay.classList.add('hidden');
-    });
-
-    // Hide modal if user clicks outside content
-    window.addEventListener('click', (event) => {
-      if (event.target === modalOverlay) {
-        modalOverlay.classList.remove('flex');
-        modalOverlay.classList.add('hidden');
-      }
-    });
-
-    // Form submission
-    blockForm.addEventListener('submit', async (event) => {
-      event.preventDefault();
-
-      // Collect data
-      const file = document.getElementById('fileInput').files[0];
-      const strategyName = document.getElementById('strategyName').value;
-      const typeSelect = document.getElementById('typeSelect').value;
-      const setupName = document.getElementById('setupName').value;
-      const market = document.getElementById('market').value;
-      const timeframe = document.getElementById('timeframe').value;
-      const schedule = document.getElementById('schedule').value;
-      const additionalData = document.getElementById('additionalData').value;
-
-      const formData = new FormData();
-      if (file) formData.append('uploaded_file', file);
-      formData.append('strategyName', strategyName);
-      formData.append('type', typeSelect);
-      formData.append('setupName', setupName);
-      formData.append('market', market);
-      formData.append('timeframe', timeframe);
-      formData.append('schedule', schedule);
-      formData.append('additionalData', additionalData);
-
-      try {
-        const response = await fetch('/uploadNewStrategy', {
-          method: 'POST',
-          body: formData
-        });
-
-        if (response.ok) {
-          alert('Data submitted successfully!');
-          modalOverlay.classList.remove('flex');
-          modalOverlay.classList.add('hidden');
-        } else {
-          alert('Submission failed.');
-        }
-      } catch (error) {
-        console.error(error);
-        alert('An error occurred.');
-      }
-    });
-    fetchStrategies()
-  </script>
+  
   <script>
     document.getElementById('uploadForm').addEventListener('submit', async (event) => {
       event.preventDefault();
