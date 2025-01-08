@@ -1,5 +1,6 @@
 from ib_async import IB
 from typing import List
+from broker_interface import BrokerInterface
 
 class IBroker(BrokerInterface):
     
