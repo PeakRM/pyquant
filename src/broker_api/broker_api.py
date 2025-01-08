@@ -58,8 +58,8 @@ async def place_limit_order(symbol: str, qty: int, price: float, broker: str = '
     """
     broker_manager.switch_broker(broker)
     try:
-        order = await broker_manager.place_limit_order(symbol, qty, price)
-        return {"order": order}
+        orderId = await broker_manager.place_limit_order(symbol, qty, price)
+        return {"orderId": orderId}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -72,8 +72,8 @@ async def place_market_order(symbol: str, qty: int, broker: str = 'IB'):
     """
     broker_manager.switch_broker(broker)
     try:
-        order = await broker_manager.place_market_order(symbol, qty)
-        return {"order": order}
+        orderId = await broker_manager.place_market_order(symbol, qty)
+        return {"orderId": orderId}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
