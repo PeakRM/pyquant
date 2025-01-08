@@ -1,14 +1,17 @@
+from broker_interface import BrokerInterface
+from ibroker import IBroker
+from typing import List
+
 class BrokerManager:
     
     def __init__(self):
-        # Initially, we can default to IBroker or set dynamically
-        self.broker: BrokerInterface = IBroker()
+        self.broker: BrokerInterface
 
     def switch_broker(self, broker_name: str):
         if broker_name == 'IB':
             self.broker = IBroker()
-        elif broker_name == 'TDA':
-            self.broker = TDAmeritradeBroker()
+        # elif broker_name == 'TDA':
+        #     self.broker = TDAmeritradeBroker()
         else:
             raise ValueError("Unsupported broker")
 
