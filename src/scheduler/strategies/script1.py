@@ -29,9 +29,8 @@ logger.setLevel(logging.DEBUG)
 
 
 
-STRATEGY_NAME="Test"
 def run(account_data: AccountData, market1:str):
-
+    STRATEGY_NAME="TEST1"
     r = requests.get(f"{BROKER_API}/historicalData?symbol={market1}&securityType=STK&broker=IB&bar_size=1%20day&lookback=60%20D")
     assert r.status_code == httpx.codes.OK, r.raise_for_status()
     market1_data = pd.DataFrame.from_records(r.json())
@@ -84,24 +83,24 @@ def run(account_data: AccountData, market1:str):
     logger.info(f"pys3: {json.dumps(trades[0].model_dump())}")
     return trades
 
-def check_position(symbol)->str:
+def check_position(symbol:str, strategy_name:str)->str:
     with open("/shared/positions.json",'r') as position_file:
         positions = json.load(position_file)
     
     try:
-        strategy_position = positions[f"{STRATEGY_NAME}-{symbol}"]
+        strategy_position = positions[f"{strategy_name}-{symbol}"]
         position_status = strategy_position['status'].lower() 
     except KeyError:
         print("no position found in file")
         position_status=""
     return  position_status
 
-def generate_test_trade(symbol:str, exchange:str) -> List[Trade]:
-    position_status = check_position(symbol=symbol)
+def generate_test_trade(symbol:str, exchange:str, strategy_name:str) -> List[Trade]:
+    position_status = check_position(symbol=symbol, strategy_name=strategy_name)
     
     if position_status == "filled":
 
-        return  [Trade(strategy_name=STRATEGY_NAME,
+        return  [Trade(strategy_name=strategy_name,
                         symbol=symbol,
                          contract_id=99999999, # TODO - ADD THIS FIELD TO STRATEGY CONFIG
                          exchange=exchange,
@@ -113,7 +112,7 @@ def generate_test_trade(symbol:str, exchange:str) -> List[Trade]:
         # no open position
         print(position_status)
 
-        return  [Trade(strategy_name=STRATEGY_NAME,
+        return  [Trade(strategy_name=strategy_name,
                         symbol=symbol,
                          contract_id=99999999,
                          exchange=exchange,
@@ -151,6 +150,7 @@ if __name__ == "__main__":
     setup_name = sys.argv[1]
     config_data = load_and_parse_config("/shared/strategy-config.json", setup_name=setup_name)
     strategy_settings = initialize(config_data)
+    strategy_settings["strategy_name"] = setup_name.split("-")[0]
     while True:
 
         # if is_within_est_business_hours():
@@ -167,7 +167,8 @@ if __name__ == "__main__":
             #                 "buying_power":16307.37
             #                 }) ,market1="SPY")
             trade = generate_test_trade(symbol=strategy_settings['symbol'],
-                                        exchange=strategy_settings['exchange'])
+                                        exchange=strategy_settings['exchange'],
+                                        strategy_name=strategy_settings["strategy_name"])
             print(trade)
 
             if trade:
