@@ -10,6 +10,13 @@ from pathlib import Path
 import random
 from datetime import datetime, timedelta
 import numpy as np
+import re
+
+# Load environment variables
+env_path = Path('/shared/.env')
+if not env_path.exists():
+    raise FileNotFoundError(f"Environment file not found at {env_path}")
+load_dotenv(env_path)
 
 # Abstract Broker Interface
 class BrokerInterface(ABC):
@@ -47,28 +54,14 @@ class BrokerInterface(ABC):
     async def validate_contract(self, contract: Contract) -> bool:
         pass
 
-# Load environment variables
-env_path = Path('/shared/.env')
-if not env_path.exists():
-    raise FileNotFoundError(f"Environment file not found at {env_path}")
-load_dotenv(env_path)
-
-# Configuration class for broker settings
-class BrokerConfig:
-    class InteractiveBrokers:
-        USERNAME = os.getenv('IB_USERNAME')
-        PASSWORD = os.getenv('IB_PASSWORD')
-        HOST = os.getenv('IB_HOST', '127.0.0.1')
-        PORT = int(os.getenv('IB_PORT', '7497'))
-        CLIENT_ID = int(os.getenv('IB_CLIENT_ID', '1'))
-
-        @classmethod
-        def validate(cls):
-            required_vars = ['IB_HOST', 'IB_PORT', 'IB_CLIENT_ID']
-            missing_vars = [var for var in required_vars if not os.getenv(var)]
-            if missing_vars:
-                raise ValueError(f"Missing required environment variables: {', '.join(missing_vars)}")
-
+# Interactive Brokers Implementation
+class IBBroker(BrokerInterface):
+    def __init__(self):
+        self.host = os.getenv('IB_HOST', '127.0.0.1')
+        self.port = int(os.getenv('IB_PORT', '7497'))
+        self.client_id = int(os.getenv('IB_CLIENT_ID', '1'))
+        self.ib = ib_insync.IB()
+        self._connected = False
 
     async def connect(self) -> bool:
         if not self._connected:
@@ -223,6 +216,7 @@ class BrokerConfig:
             return "1 Y"
         else:
             return "5 Y"
+
 
 class TestBroker(BrokerInterface):
     def __init__(self):

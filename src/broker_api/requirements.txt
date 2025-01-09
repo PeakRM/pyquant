@@ -2,6 +2,9 @@ fastapi==0.115.6
 grpcio==1.68.0
 grpcio-tools==1.68.0
 ipykernel==6.29.5
+ib_async==1.0.3
+python-dotenv==1.0.1
+beautifulsoup4>=4.12
 ipython==8.30.0
 json5==0.10.0
 matplotlib==3.9.3
