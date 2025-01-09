@@ -3,39 +3,55 @@ import databento as db
 from dotenv import load_dotenv
 import os
 from datetime import datetime, timedelta
+import sqlite3
+
+
 
 try:
     load_dotenv('./shared/.env')
+    db_path = r"./shared/securities_master.db"
 except Exception as e:
     load_dotenv('./shared_files/.env')
+    db_path = r"./shared_files/securities_master.db"
  
+
+db = sqlite3.connect(db_path)
 client = db.Historical(key=os.environ.get('DB_API_KEY'))
 
 
-def get_front_month(root_symbol: str = "ES") -> pd.DataFrame():
+def get_front_month_contracts(root_symbols: List[str]=["ES"], dataset:str="GLBX.MDP3") -> pd.DataFrame():
+   root_symbols = [f"{rs.upper()}.FUT" for rs in root_symbols if rs.upper[-3:] != "FUT]
    end = datetime.today()
    start = end - timedelta(days=90)
    stats = client.timeseries.get_range(
-           dataset="GLBX.MDP3",
-          symbols=f"{root_symbol.upper()}.FUT",
+           dataset=dataset,
+          symbols=root_symbols,
           stype_in="parent",
           start=start.strftime("%Y-%m-%d"),
           end=end.strftime("%Y-%m-%d"),
           schema="statistics",
-        # and convert it to a DataFrame
     ).to_df()
+    # we should identify root symbol on each row
+   # how much faster is polars, does speed matter?
+    stats = stats[stats.stat_type.isin([db.StatType.OPEN_INTEREST])].copy()
     
-    stats1 = stats[
-        stats.stat_type.isin([db.StatType.OPEN_INTEREST])
-    ].copy()
-    
-    stats1["stat"] = stats1["stat_type"].map(
+    stats["stat"] = stats["stat_type"].map(
         {
             db.StatType.OPEN_INTEREST: "open interest",
         },
     )
     
-    stats1["ts_ref_date"] = stats1["ts_ref"].dt.floor("D")
-    return stats1.reset_index().loc[stats1.reset_index().groupby(["ts_ref_date"]).quantity.idxmax(),['ts_ref_date','symbol']]
-    
+    stats["ts_ref_date"] = stats["ts_ref"].dt.floor("D")
+    return (stats1.reset_index()
+                   .loc[stats1.reset_index().groupby(["ts_ref_date"]).quantity.idxmax(),
+                       ['ts_ref_date','symbol']])
+   
+   
+   
+   
+if __name__=="__main__":
+   data = get_front_month_contracts(
+   
+   
+   
 
