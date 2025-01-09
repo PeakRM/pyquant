@@ -1,106 +1,44 @@
 from fastapi import FastAPI, HTTPException
 from typing import List
-from broker_manager import BrokerManager
-
+from broker_interface import BrokerFactory
+from models import Contract, OrderRequest
+from datetime import datetime 
+from typing import Optional
 app = FastAPI()
 
-# Instantiate the broker manager
-broker_manager = BrokerManager()
+# FastAPI Application
+app = FastAPI(title="Multi-Broker Trading API")
 
 
-@app.get("/quotes")
-async def get_quotes(symbol: str, broker: str = 'IB'):
-    """
-    Endpoint to request a quote for a given symbol from the specified broker.
-    The broker can be switched dynamically using the 'broker' query parameter.
-    """
-    broker_manager.switch_broker(broker)
-    try:
-        quote = await broker_manager.request_quote(symbol)
-        return {"symbol": symbol, "quote": quote}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+@app.post("/api/{broker}/quote")
+async def get_quote(broker: str, contract: Contract):
+    broker_instance = BrokerFactory.get_broker(broker)
+    return await broker_instance.get_quote(contract)
+
+@app.get("/api/{broker}/fills")
+async def get_fills(broker: str, order_id: Optional[str] = None):
+    broker_instance = BrokerFactory.get_broker(broker)
+    return await broker_instance.get_fills(order_id)
+
+@app.post("/api/{broker}/order")
+async def place_order(broker: str, order_request: OrderRequest):
+    broker_instance = BrokerFactory.get_broker(broker)
+    return await broker_instance.place_order(order_request)
+
+@app.post("/api/{broker}/historical")
+async def get_historical_data(
+    broker: str,
+    contract: Contract,
+    start_time: datetime,
+    end_time: datetime,
+    bar_size: str
+):
+    broker_instance = BrokerFactory.get_broker(broker)
+    return await broker_instance.get_historical_data(contract, start_time, end_time, bar_size)
+
+@app.post("/api/{broker}/validate-contract")
+async def validate_contract(broker: str, contract: Contract):
+    broker_instance = BrokerFactory.get_broker(broker)
+    return await broker_instance.validate_contract(contract)
 
 
-@app.get("/fills")
-async def get_fills(broker: str = 'IB'):
-    """
-    Endpoint to request all fills from the specified broker.
-    The broker can be switched dynamically using the 'broker' query parameter.
-    """
-    broker_manager.switch_broker(broker)
-    try:
-        fills = await broker_manager.request_fills()
-        return {"fills": fills}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/fills/{order_id}")
-async def get_fills_for_order(order_id: int, broker: str = 'IB'):
-    """
-    Endpoint to request fills for a specific order ID from the specified broker.
-    The broker can be switched dynamically using the 'broker' query parameter.
-    """
-    broker_manager.switch_broker(broker)
-    try:
-        fills = await broker_manager.request_fills_for_order(order_id)
-        return {"order_id": order_id, "fills": fills}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/place_limit_order")
-async def place_limit_order(symbol: str, qty: int, price: float, broker: str = 'IB'):
-    """
-    Endpoint to place a limit order with the specified symbol, quantity, and price
-    on the specified broker. The broker can be switched dynamically using the 'broker' query parameter.
-    """
-    broker_manager.switch_broker(broker)
-    try:
-        orderId = await broker_manager.place_limit_order(symbol, qty, price)
-        return {"orderId": orderId}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/place_market_order")
-async def place_market_order(symbol: str, qty: int, broker: str = 'IB'):
-    """
-    Endpoint to place a market order with the specified symbol and quantity
-    on the specified broker. The broker can be switched dynamically using the 'broker' query parameter.
-    """
-    broker_manager.switch_broker(broker)
-    try:
-        orderId = await broker_manager.place_market_order(symbol, qty)
-        return {"orderId": orderId}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/historical_data")
-async def get_historical_data(symbol: str, start_date: str, end_date: str, broker: str = 'IB'):
-    """
-    Endpoint to request historical market data for a given symbol from the specified broker.
-    The broker can be switched dynamically using the 'broker' query parameter.
-    """
-    broker_manager.switch_broker(broker)
-    try:
-        data = await broker_manager.get_historical_data(symbol, start_date, end_date)
-        return {"symbol": symbol, "data": data}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/validate_contract")
-async def validate_contract(symbol: str, exchange: str, currency: str, broker: str = 'IB'):
-    """
-    Endpoint to validate if a contract is valid for trading with the specified broker.
-    The broker can be switched dynamically using the 'broker' query parameter.
-    """
-    broker_manager.switch_broker(broker)
-    try:
-        contract = await broker_manager.validate_contract(symbol, exchange, currency)
-        return {"contract": contract}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
