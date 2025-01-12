@@ -1,3 +1,5 @@
+databento==0.47.0
+databento-dbn==0.25.0
 fastapi==0.115.6
 grpcio==1.68.0
 grpcio-tools==1.68.0
