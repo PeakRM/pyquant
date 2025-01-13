@@ -7,3 +7,4 @@ strategy-config.json
 /src/.env
 /src/*/.env
 src/broker_api/__pycache__
+/.venv
