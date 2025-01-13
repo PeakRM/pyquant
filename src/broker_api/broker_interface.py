@@ -13,7 +13,7 @@ import numpy as np
 import re
 
 # Load environment variables
-env_path = Path('/shared/.env')
+env_path = Path('.env')
 if not env_path.exists():
     raise FileNotFoundError(f"Environment file not found at {env_path}")
 load_dotenv(env_path)
@@ -93,7 +93,7 @@ class IBBroker(BrokerInterface):
         
         try:
             await self.ib.qualifyContractsAsync(ib_contract)
-            tickers = await self.ib.reqMktDataAsync(ib_contract)
+            tickers = self.ib.reqMktData(ib_contract)
             
             return Quote(
                 contract=contract,
@@ -197,9 +197,23 @@ class IBBroker(BrokerInterface):
         
         try:
             contracts = await self.ib.qualifyContractsAsync(ib_contract)
+            print(contracts)
             return len(contracts) > 0
         except Exception:
             return False
+
+    async def get_contract_id(self, contract: Contract) -> int:
+        await self.connect()
+        ib_contract = self._convert_contract(contract)
+        
+        try:
+            contracts = await self.ib.qualifyContractsAsync(ib_contract)
+            print(contracts)
+            if len(contracts)==1:
+                return contracts[0].conId
+        except Exception:
+            return False
+
 
     def _calculate_duration(self, start_time: datetime, end_time: datetime) -> str:
         # Calculate the duration string based on the time difference
@@ -217,7 +231,6 @@ class IBBroker(BrokerInterface):
         else:
             return "5 Y"
 
-
 class TestBroker(BrokerInterface):
     def __init__(self):
         self._connected = False
@@ -227,18 +240,22 @@ class TestBroker(BrokerInterface):
         self._prices = {}  # Store simulated prices by symbol
         
     async def connect(self) -> bool:
-        self._connected = True
-        return True
+        if not self._connected:
+            self._connected = True
+        return self._connected
 
     async def disconnect(self) -> bool:
-        self._connected = False
-        return True
+        if self._connected:
+            self._connected = False
+        return self._connected
 
-    def _generate_order_id(self) -> str:
+    async def _generate_order_id(self) -> str:
+        await self.connect()
         return f"TEST_{int(datetime.now().timestamp())}_{random.randint(1000, 9999)}"
 
-    def _simulate_price(self, symbol: str) -> dict:
+    async def _simulate_price(self, symbol: str) -> dict:
         """Generate simulated prices for a symbol."""
+        await self.connect()
         if symbol not in self._prices:
             base_price = random.uniform(10, 1000)
             spread = base_price * 0.001  # 0.1% spread
@@ -264,6 +281,7 @@ class TestBroker(BrokerInterface):
         }
 
     async def get_quote(self, contract: Contract) -> Quote:
+        await self.connect()
         if not self._connected:
             raise HTTPException(status_code=500, detail="Not connected")
         
@@ -278,6 +296,7 @@ class TestBroker(BrokerInterface):
         )
 
     async def get_fills(self, order_id: Optional[str] = None) -> List[Fill]:
+        await self.connect()
         if not self._connected:
             raise HTTPException(status_code=500, detail="Not connected")
         
@@ -291,6 +310,7 @@ class TestBroker(BrokerInterface):
         return fills
 
     async def place_order(self, order_request: OrderRequest) -> str:
+        await self.connect()
         if not self._connected:
             raise HTTPException(status_code=500, detail="Not connected")
         
@@ -344,6 +364,7 @@ class TestBroker(BrokerInterface):
         end_time: datetime,
         bar_size: str
     ) -> List[Dict[str, Any]]:
+        await self.connect()
         if not self._connected:
             raise HTTPException(status_code=500, detail="Not connected")
         
@@ -388,6 +409,7 @@ class TestBroker(BrokerInterface):
         return prices
 
     async def validate_contract(self, contract: Contract) -> bool:
+        await self.connect()
         if not self._connected:
             raise HTTPException(status_code=500, detail="Not connected")
         

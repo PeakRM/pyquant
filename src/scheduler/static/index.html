@@ -382,6 +382,7 @@
       const typeSelect = document.getElementById('typeSelect').value;
       const setupName = document.getElementById('setupName').value;
       const market = document.getElementById('market').value;
+      const contractId = document.getElementById('contractId').value;
       const timeframe = document.getElementById('timeframe').value;
       const schedule = document.getElementById('schedule').value;
       const additionalData = document.getElementById('additionalData').value;
@@ -392,6 +393,7 @@
       formData.append('type', typeSelect);
       formData.append('setupName', setupName);
       formData.append('market', market);
+      formData.append('contract_id', contractId);
       formData.append('timeframe', timeframe);
       formData.append('schedule', schedule);
       formData.append('additionalData', additionalData);

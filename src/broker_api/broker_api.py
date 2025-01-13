@@ -41,4 +41,8 @@ async def validate_contract(broker: str, contract: Contract):
     broker_instance = BrokerFactory.get_broker(broker)
     return await broker_instance.validate_contract(contract)
 
+@app.post("/api/{broker}/contract-id")
+async def get_contract_id(broker: str, contract: Contract):
+    broker_instance = BrokerFactory.get_broker(broker)
+    return await broker_instance.get_contract_id(contract)
 

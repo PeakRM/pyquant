@@ -3,3 +3,7 @@ positions.json
 strategy-config.json
 
 /shared_files
+
+/src/.env
+/src/*/.env
+src/broker_api/__pycache__

@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -24,6 +25,7 @@ import (
 // Setup represents one named setup in the config
 type Setup struct {
 	Market     string   `json:"market"`
+	ContractId int      `json:"contract_id"`
 	Active     bool     `json:"active"`
 	Timeframe  string   `json:"timeframe"`
 	Schedule   string   `json:"schedule"`
@@ -42,7 +44,7 @@ type Position struct {
 	Quantity   int     `json:"quantity"`
 	CostBasis  float64 `json:"cost_basis"`
 	Datetime   string  `json:"datetime"`
-	ContractID int     `json:"contract_id"`
+	ContractId int     `json:"contract_id"`
 	Status     string  `json:"status"`
 }
 
@@ -250,9 +252,16 @@ func newStrategyHandler(w http.ResponseWriter, r *http.Request) {
 	typeVal := r.FormValue("type")
 	setupName := r.FormValue("setupName")
 	market := r.FormValue("market")
+	contractIdString := r.FormValue("contract_id")
 	timeframe := r.FormValue("timeframe")
 	schedule := r.FormValue("schedule")
 	additionalData := r.FormValue("additionalData")
+
+	contractId, err := strconv.Atoi(contractIdString)
+	if err != nil {
+		fmt.Println("Error converting string:", err)
+		contractId = 999999
+	}
 
 	// Grab the file from the form data
 	file, handler, err := r.FormFile("uploaded_file")
@@ -296,10 +305,10 @@ func newStrategyHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		log.Printf("[INFO] File uploaded successfully: %s\n", handler.Filename)
 		// (Optional) Do something with these fields—e.g., store them in a DB:
-		log.Printf("[INFO] strategyName=%s, type=%s, setupName=%s, market=%s, timeframe=%s, schedule=%s, additionalData=%s",
-			strategyName, typeVal, setupName, market, timeframe, schedule, additionalData,
+		log.Printf("[INFO] strategyName=%s, type=%s, setupName=%s, market=%s, contractId=%d, timeframe=%s, schedule=%s, additionalData=%s",
+			strategyName, typeVal, setupName, market, contractId, timeframe, schedule, additionalData,
 		)
-		addStrategyToConfigFile(filePath, strategyName, typeVal, setupName, market, timeframe, schedule, additionalData)
+		addStrategyToConfigFile(filePath, strategyName, typeVal, setupName, market, timeframe, schedule, additionalData, contractId)
 	}
 
 	// Return a success response
@@ -308,7 +317,7 @@ func newStrategyHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func addStrategyToConfigFile(scriptPath, strategyName, typeVal, setupName, market, timeframe, schedule, additionalData string) {
+func addStrategyToConfigFile(scriptPath, strategyName, typeVal, setupName, market, timeframe, schedule, additionalData string, contractId int) {
 	_, ok := strategies[strategyName]
 	if ok {
 		log.Print("Strategy already exists, select differnt name.")
@@ -316,6 +325,7 @@ func addStrategyToConfigFile(scriptPath, strategyName, typeVal, setupName, marke
 	}
 	setup := Setup{
 		Market:     market,
+		ContractId: contractId,
 		Active:     false,
 		Timeframe:  timeframe,
 		Schedule:   schedule,
