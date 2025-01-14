@@ -4,8 +4,17 @@ from broker_interface import BrokerFactory
 from models import Contract, OrderRequest
 from datetime import datetime 
 from typing import Optional
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI()
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:8080"],  # Your frontend URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 # FastAPI Application
 app = FastAPI(title="Multi-Broker Trading API")
 

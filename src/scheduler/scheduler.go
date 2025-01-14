@@ -64,7 +64,8 @@ var (
 
 func main() {
 	// 1. Load from JSON
-	if err := loadStrategies("/shared/strategy-config.json"); err != nil {
+	shared_strategy_config := GetSharedFilePath("strategy-config.json")
+	if err := loadStrategies(shared_strategy_config); err != nil {
 		log.Fatalf("Failed to load strategies: %v", err)
 	}
 
@@ -83,6 +84,21 @@ func main() {
 	// Start server
 	log.Println("Server running on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
+}
+
+// -----------------------------------------------------------------
+// Utils
+// -----------------------------------------------------------------
+
+// GetSharedFilePath returns the appropriate path based on environment
+func GetSharedFilePath(filename string) string {
+	// Check if running in container by looking for /.dockerenv
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		return filepath.Join("/shared", filename)
+	}
+
+	// Development environment
+	return filepath.Join("..", "..", "shared_files", filename)
 }
 
 // -----------------------------------------------------------------
@@ -164,7 +180,8 @@ func positionStreamHandler(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		case <-ticker.C:
-			if err := loadPositions("/shared/positions.json"); err != nil {
+			shared_positions := GetSharedFilePath("positions.json")
+			if err := loadPositions(shared_positions); err != nil {
 				log.Fatalf("Failed to load positions: %v", err)
 				continue
 			}
@@ -337,8 +354,9 @@ func addStrategyToConfigFile(scriptPath, strategyName, typeVal, setupName, marke
 		StrategyType: typeVal,
 		Setups:       setups,
 	}
+	shared_strategy_config := GetSharedFilePath("strategy-config.json")
 	// 4) Persist to JSON
-	if err := saveStrategies("/shared/strategy-config.json"); err != nil {
+	if err := saveStrategies(shared_strategy_config); err != nil {
 		log.Printf("Failed to save config: " + err.Error())
 		return
 	}
@@ -381,9 +399,9 @@ func toggleSetup(strategyName, setupName string, w http.ResponseWriter, r *http.
 	// 3) Update the local strategies map
 	strat.Setups[setupName] = setup
 	strategies[strategyName] = strat
-
+	shared_strategy_config := GetSharedFilePath("strategy-config.json")
 	// 4) Persist to JSON
-	if err := saveStrategies("/shared/strategy-config.json"); err != nil {
+	if err := saveStrategies(shared_strategy_config); err != nil {
 		http.Error(w, "Failed to save config: "+err.Error(), http.StatusInternalServerError)
 		return
 	}

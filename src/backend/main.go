@@ -1467,6 +1467,8 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"pytrader/definitions"
 	pb "pytrader/tradepb"
 	"strconv"
@@ -1728,13 +1730,24 @@ func updatePositionsToPending(orderResp OrderResponse) {
 		p.Status = "pending"
 		positions.Store(positionId, p)
 	}
-
+	shared_positions := GetSharedFilePath("positions.json")
 	// Marshal to JSON file
-	if err := SyncMapToJSONFile(&positions, "/shared/positions.json"); err != nil {
+	if err := SyncMapToJSONFile(&positions, shared_positions); err != nil {
 		fmt.Println("Error marshalling sync.Map to JSON:", err)
 		return
 	}
 
+}
+
+// GetSharedFilePath returns the appropriate path based on environment
+func GetSharedFilePath(filename string) string {
+	// Check if running in container by looking for /.dockerenv
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		return filepath.Join("/shared", filename)
+	}
+
+	// Development environment
+	return filepath.Join("..", "..", "shared_files", filename)
 }
 
 func updatePositionsToFilled(orderResp OrderResponse, costBasis float64, quantity int) {
@@ -1765,9 +1778,9 @@ func updatePositionsToFilled(orderResp OrderResponse, costBasis float64, quantit
 		ContractID: int(orderResp.Order.Trade.ContractId),
 		Status:     status,
 	})
-
+	shared_positions := GetSharedFilePath("positions.json")
 	// Marshal to JSON file
-	if err := SyncMapToJSONFile(&positions, "/shared/positions.json"); err != nil {
+	if err := SyncMapToJSONFile(&positions, shared_positions); err != nil {
 		fmt.Println("Error marshalling sync.Map to JSON:", err)
 		return
 	}
@@ -1839,9 +1852,9 @@ var positions sync.Map //
 func main() {
 	// Clear the original map to demonstrate loading from file
 	// sm = sync.Map{}
-
+	shared_positions := GetSharedFilePath("positions.json")
 	// Unmarshal from JSON file
-	if err := SyncMapFromJSONFile(&positions, "/shared/positions.json"); err != nil {
+	if err := SyncMapFromJSONFile(&positions, shared_positions); err != nil {
 		fmt.Println("Error unmarshalling JSON to sync.Map:", err)
 		return
 	}
