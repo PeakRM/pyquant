@@ -5,17 +5,15 @@ from datetime import datetime
 from typing import Optional
 from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI()
+app = FastAPI(title="Multi-Broker Trading API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8080"],  # Your frontend URL
+    allow_origins=["http://localhost:8080"],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["POST", "OPTIONS"],
+    allow_headers=["Content-Type"],
 )
-# FastAPI Application
-app = FastAPI(title="Multi-Broker Trading API")
 
 @app.get("/")
 async def get_index() -> str:

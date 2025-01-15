@@ -473,18 +473,15 @@
     e.preventDefault();
     const formData = new FormData(e.target);
     const payload = Object.fromEntries(formData);
-    console.log(formData)
+    console.log('Sending request to:', `${API_BASE}/api/IB/contract-id`);
+    console.log('With payload:', payload);
     
     try {
       const response = await fetch(`${API_BASE}/api/IB/contract-id`, {
         method: 'POST',
-        // headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        headers: { 
-  'Content-Type': 'application/json',
-  'Access-Control-Allow-Methods': 'POST',
-  'Access-Control-Allow-Origin': '*'
-},
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload)
       });
       
       const result = await response.json();
