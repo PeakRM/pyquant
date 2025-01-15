@@ -422,6 +422,16 @@ class TestBroker(BrokerInterface):
             return bool(re.match(r'^[A-Z]{1,5}$', contract.symbol))
         return False
 
+    async def get_contract_id(self, contract: Contract) -> int:
+        await self.connect()
+        if not self._connected:
+            raise HTTPException(status_code=500, detail="Not connected")
+        full_string = f"{contract.symbol}{contract.contract_type}{contract.exchange}{contract.currency}{contract.expiry}"
+        alphabet = list("abcdefghijklmnopqrstuvwzyz")
+        output = int("".join([str(alphabet.index(c)) for c in full_string.lower()]))
+        return output
+        
+
 # Update BrokerFactory to include TestBroker
 class BrokerFactory:
     _brokers: Dict[str, BrokerInterface] = {}

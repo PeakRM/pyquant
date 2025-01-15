@@ -1,5 +1,4 @@
 from fastapi import FastAPI, HTTPException
-from typing import List
 from broker_interface import BrokerFactory
 from models import Contract, OrderRequest
 from datetime import datetime 
@@ -18,6 +17,9 @@ app.add_middleware(
 # FastAPI Application
 app = FastAPI(title="Multi-Broker Trading API")
 
+@app.get("/")
+async def get_index() -> str:
+    return "Multi-Broker Trading API"
 
 @app.post("/api/{broker}/quote")
 async def get_quote(broker: str, contract: Contract):
