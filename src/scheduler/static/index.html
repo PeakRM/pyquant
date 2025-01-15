@@ -286,13 +286,21 @@
           { headerName: 'Timeframe', field: 'timeframe', flex: 1 },
           { headerName: 'Schedule', field: 'schedule', flex: 1 },
           { headerName: 'Open Position', field: 'openPosition', flex: 1 },
+          { headerName: 'Edit Setup', field: 'editSetup', flex: 1,
+            cellRenderer: params => {
+                const button = document.createElement('edit-button');
+                button.innerHTML = '<i class="fas fa-cog"></i>'; // Using Font Awesome for the gear icon
+                button.className = 'btn-action';
+                button.addEventListener('click', () => openEditForm(params.data));
+                return button;
+            },
           {
             headerName: 'Actions', field: 'actions', flex: 1,
             // Use a custom cell renderer for the toggle button
             cellRenderer: (params) => {
               const container = document.createElement('div');
               const btn = document.createElement('button');
-              btn.textContent = "Resume/Pause";
+              btn.textContent = params.data.active == true ? "Pause" : "Resume";//"Resume/Pause";
               btn.className = 'px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700';
 
               // When clicked, call the toggle function
