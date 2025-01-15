@@ -427,7 +427,7 @@ class TestBroker(BrokerInterface):
         if not self._connected:
             raise HTTPException(status_code=500, detail="Not connected")
         full_string = f"{contract.symbol}{contract.contract_type}{contract.exchange}{contract.currency}{contract.expiry}"
-        alphabet = list("abcdefghijklmnopqrstuvwzyz")
+        alphabet = list("abcdefghijklmnopqrstuvwzyz0123456789")
         output = int("".join([str(alphabet.index(c)) for c in full_string.lower()]))
         return output
         
