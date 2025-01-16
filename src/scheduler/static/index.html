@@ -9,7 +9,7 @@
 
   <!-- AG Grid (via CDN) -->
   <script src="https://cdn.jsdelivr.net/npm/ag-grid-community/dist/ag-grid-community.min.js"></script>
-
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.0/css/all.min.css" integrity="sha512-9xKTRVabjVeZmc+GUW8GgSmcREDunMM+Dt/GrzchfN8tkwHizc5RP4Ok/MXFFy5rIjJjzhndFScTceq5e6GvVQ==" crossorigin="anonymous" referrerpolicy="no-referrer" /> 
   <style>
     /* Just some extra spacing for the grids */
     .grid-container {
@@ -282,20 +282,28 @@
         const columnDefs = [
           { headerName: 'Setup Name', field: 'setupName', flex: 1 },
           { headerName: 'Market', field: 'market', flex: 1 },
-          { headerName: 'Active', field: 'active', flex: 1 },
+          { headerName: 'Active', field: 'active', flex: 1 , 
+            cellRenderer:(params)=>{
+              const cont = document.createElement('div');
+              const activeStrategy = '<i class="fa-solid fa-circle-check" style="color: #63E6BE;"></i>';
+              const inactiveStrategy = '<i class="fa-solid fa-circle-xmark" style="color: #e60a20;"></i>';
+              cont.innerHTML = params.data.active == true ? activeStrategy: inactiveStrategy ; 
+              return cont
+            }},
           { headerName: 'Timeframe', field: 'timeframe', flex: 1 },
           { headerName: 'Schedule', field: 'schedule', flex: 1 },
           { headerName: 'Open Position', field: 'openPosition', flex: 1 },
           { headerName: 'Edit Setup', field: 'editSetup', flex: 1,
             cellRenderer: params => {
                 const button = document.createElement('edit-button');
-                button.innerHTML = '<i class="fas fa-cog"></i>'; // Using Font Awesome for the gear icon
+                button.innerHTML = '<i class="fa-solid fa-gears"></i>'; // Using Font Awesome for the gear icon
                 button.className = 'btn-action';
                 button.addEventListener('click', () => openEditForm(params.data));
                 return button;
-            },
+            }
+          },
           {
-            headerName: 'Actions', field: 'actions', flex: 1,
+            headerName: 'Start/Stop', field: 'actions', flex: 1,
             // Use a custom cell renderer for the toggle button
             cellRenderer: (params) => {
               const container = document.createElement('div');
@@ -321,7 +329,7 @@
                     defaultColDef: {
                       resizable: true,
                       sortable: true,
-                      filter: true
+                      filter: false
                     },
                     animateRows: true,
                 getRowId: (params) => params.data.setupName, // Tell AG Grid how to identify each row
