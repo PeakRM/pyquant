@@ -29,14 +29,15 @@
     </p>
 
   <!-- Add New Block Button -->
-  <button 
-    id="addBlockBtn" 
-    class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-  >
-    Add New Strategy
-  </button>
-
-  <!-- Modal Overlay -->
+   <div class="p-2">
+    <button 
+      id="addBlockBtn" 
+      class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+    >
+      Add New Strategy
+    </button>
+  </div>
+  <!-- New Strategy Modal Overlay -->
   <div 
     id="modalOverlay"
     class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50"
@@ -156,10 +157,103 @@
       </form>
     </div>
   </div>
+  <!-- Edit Setup Modal Overlay -->
+  <div 
+    id="editSetupModalOverlay"
+    class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50"
+  >
+    <!-- Modal Content -->
+    <div 
+      id="editSetupModalContent"
+      class="bg-white p-6 rounded shadow max-w-sm w-full relative"
+    >
+      <!-- Close Button -->
+      <button 
+        id="closeEditSetupModal" 
+        class="absolute top-2 right-2 text-gray-700 font-bold text-xl"
+      >
+        &times;
+      </button>
 
+      <h2 class="text-xl font-semibold mb-4">Edit Setup Details</h2>
+
+      <!-- Form -->
+      <form id="editSetupForm" class="space-y-4">
+        <div>
+          <label class="block font-medium mb-1" for="editSetupName">Setup Name</label>
+          <input 
+            class="block w-full border rounded p-1" 
+            type="text" 
+            id="editSetupName" 
+            name="setupName"
+            disabled="disabled"
+          />
+        </div>
+        
+        <div>
+          <label class="block font-medium mb-1" for="editMarket">Market</label>
+          <input 
+            class="block w-full border rounded p-1" 
+            type="text" 
+            id="editMarket" 
+            name="market"
+            disabled="disabled"
+          />
+        </div>
+
+        <div>
+          <label class="block font-medium mb-1" for="editContractId">Contract ID</label>
+          <input 
+            class="block w-full border rounded p-1" 
+            type="text" 
+            id="editContractId" 
+            name="contract_id"
+          />
+        </div>
+        
+        <div>
+          <label class="block font-medium mb-1" for="editTimeframe">Timeframe</label>
+          <input 
+            class="block w-full border rounded p-1" 
+            type="text" 
+            id="editTimeframe" 
+            name="timeframe"
+          />
+        </div>
+        
+        <div>
+          <label class="block font-medium mb-1" for="editSchedule">Schedule</label>
+          <input 
+            class="block w-full border rounded p-1" 
+            type="text" 
+            id="editSchedule" 
+            name="schedule"
+          />
+        </div>
+
+        <div>
+          <label class="block font-medium mb-1" for="editAdditionalData">Additional Data</label>
+          <input 
+            class="block w-full border rounded p-1" 
+            type="text" 
+            id="editAdditionalData" 
+            name="additionalData"
+          />
+        </div>
+
+        <!-- Submit Button -->
+        <button 
+          type="submit" 
+          class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+        >
+          Save Changes
+        </button>
+      </form>
+    </div>
+  </div>
   <!-- Container where we dynamically insert a grid per strategy -->
   <div id="grids-container" class="space-y-4"></div>
-
+  <!-- Sidebar for Contract ID tool-->
   <div id="sidebar" class="fixed top-0 right-0 h-full w-80 bg-gray-100 transform translate-x-full transition-transform duration-300 shadow-lg">
     <button onclick="toggleSidebar()" class="absolute -left-10 top-4 bg-gray-200 p-2 rounded-l">
       ≡
@@ -214,6 +308,7 @@
     async function fetchStrategies() {
       const res = await fetch('/strategies');
       const strategies = await res.json();
+      console.log(strategies)
       renderGrids(strategies);//, positions);
       
     }
@@ -298,7 +393,7 @@
                 const button = document.createElement('edit-button');
                 button.innerHTML = '<i class="fa-solid fa-gears"></i>'; // Using Font Awesome for the gear icon
                 button.className = 'btn-action';
-                button.addEventListener('click', () => openEditForm(params.data));
+                button.addEventListener('click', () => openEditSetupModal(params.data));
                 return button;
             }
           },
@@ -478,37 +573,108 @@
   );
   </script>
 
-<script>
-  const API_BASE = location.hostname === 'localhost' ? 'http://localhost:8000' : 'http://broker_api';
-  function toggleSidebar() {
-    const sidebar = document.getElementById('sidebar');
-    sidebar.classList.toggle('translate-x-full');
-  }
-
-  document.getElementById('contractForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const formData = new FormData(e.target);
-    const payload = Object.fromEntries(formData);
-    console.log('Sending request to:', `${API_BASE}/api/IB/contract-id`);
-    console.log('With payload:', payload);
-    
-    try {
-      const response = await fetch(`${API_BASE}/api/IB/contract-id`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(payload)
-      });
-      
-      const result = await response.json();
-      const resultDiv = document.getElementById('result');
-      resultDiv.textContent = `Contract ID: ${result}`;
-      resultDiv.classList.remove('hidden');
-    } catch (error) {
-      console.error('Error:', error);
+  <script>
+    const API_BASE = location.hostname === 'localhost' ? 'http://localhost:8000' : 'http://broker_api';
+    function toggleSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      sidebar.classList.toggle('translate-x-full');
     }
-  });
-</script>
+
+    document.getElementById('contractForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const payload = Object.fromEntries(formData);
+      console.log('Sending request to:', `${API_BASE}/api/IB/contract-id`);
+      console.log('With payload:', payload);
+      
+      try {
+        const response = await fetch(`${API_BASE}/api/IB/contract-id`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(payload)
+        });
+        
+        const result = await response.json();
+        const resultDiv = document.getElementById('result');
+        resultDiv.textContent = `Contract ID: ${result}`;
+        resultDiv.classList.remove('hidden');
+      } catch (error) {
+        console.error('Error:', error);
+      }
+    });
+  </script>
+  
+  <script>
+    // Function to open the edit modal and populate it with data
+    async function openEditSetupModal(rowData) {
+      const res = await fetch('/strategies');
+      const strategies = await res.json();
+      const strategyName = rowData.setupName.split("-")[0]
+      const currentStrategy = strategies[strategyName]["setups"][rowData.setupName]
+
+      const modal = document.getElementById('editSetupModalOverlay');
+      const form = document.getElementById('editSetupForm');
+      
+
+
+      // Populate form fields
+      document.getElementById('editSetupName').value = rowData.setupName || ''; //should not be editable
+      document.getElementById('editMarket').value = rowData.market || ''; // should not be editable
+      document.getElementById('editTimeframe').value = rowData.timeframe || '';
+      document.getElementById('editContractId').value = currentStrategy.contract_id || '';
+      document.getElementById('editSchedule').value = rowData.schedule || '';
+      document.getElementById('editAdditionalData').value = rowData.additionalData || '';
+      
+      // Show the modal
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    // Event listeners
+    document.addEventListener('DOMContentLoaded', () => {
+      const modal = document.getElementById('editSetupModalOverlay');
+      const closeButton = document.getElementById('closeEditSetupModal');
+      const form = document.getElementById('editSetupForm');
+
+      // Close modal when clicking the close button
+      closeButton.addEventListener('click', () => {
+          modal.classList.remove('flex');
+          modal.classList.add('hidden');
+      });
+
+      // Close modal when clicking outside
+      modal.addEventListener('click', (e) => {
+          if (e.target === modal) {
+              modal.classList.remove('flex');
+              modal.classList.add('hidden');
+          }
+      });
+
+      // Handle form submission
+      form.addEventListener('submit', (e) => {
+          e.preventDefault();
+          
+          const formData = new FormData(e.target);
+          const updatedData = Object.fromEntries(formData);
+          
+          // Update the grid
+          const gridApi = gridOptions.api;
+          const selectedNode = gridApi.getSelectedNodes()[0];
+          if (selectedNode) {
+              const updatedRowData = {
+                  ...selectedNode.data,
+                  ...updatedData
+              };
+              selectedNode.setData(updatedRowData);
+          }
+          
+          // Close the modal
+          modal.classList.remove('flex');
+          modal.classList.add('hidden');
+      });
+    });
+  </script>
 
 </body>
 </html>
