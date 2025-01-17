@@ -376,8 +376,8 @@
         // Define column definitions for AG Grid
         const columnDefs = [
           { headerName: 'Setup Name', field: 'setupName', flex: 1 },
-          { headerName: 'Market', field: 'market', flex: 1, cellStyle={"textAlign":"center"}},
-          { headerName: 'Active', field: 'active', flex: 1, cellStyle={"textAlign":"center"},
+          { headerName: 'Market', field: 'market', flex: 1, cellStyle: {"textAlign":"center"}},
+          { headerName: 'Active', field: 'active', flex: 1, cellStyle: {"textAlign":"center"},
             cellRenderer:(params)=>{
               const cont = document.createElement('div');
               const activeStrategy = '<i class="fa-solid fa-circle-check" style="color: #63E6BE;"></i>';
@@ -385,11 +385,11 @@
               cont.innerHTML = params.data.active == true ? activeStrategy: inactiveStrategy ; 
               return cont
             }},
-          { headerName: 'Timeframe', field: 'timeframe', flex: 1, cellStyle={"textAlign":"center"}},
-          { headerName: 'Schedule', field: 'schedule', flex: 1 , cellStyle={"textAlign":"center"}},
-          { headerName: 'Open Position', field: 'openPosition', flex: 1 , cellStyle={"textAlign":"center"}},
+          { headerName: 'Timeframe', field: 'timeframe', flex: 1, cellStyle: {"textAlign":"center"}},
+          { headerName: 'Schedule', field: 'schedule', flex: 1 , cellStyle: {"textAlign":"center"}},
+          { headerName: 'Open Position', field: 'openPosition', flex: 1 , cellStyle: {"textAlign":"center"}},
           { headerName: 'Edit Setup', field: 'editSetup', flex: 1,
-            cellStyle={"textAlign":"center"},
+            cellStyle: {"textAlign":"center"},
             cellRenderer: params => {
                 const button = document.createElement('edit-button');
                 button.innerHTML = '<i class="fa-solid fa-gears"></i>'; // Using Font Awesome for the gear icon
@@ -609,7 +609,7 @@
   <script>
     // Function to open the edit modal and populate it with data
     async function openEditSetupModal(rowData) {
-      const res = await fetch('/strategies');
+      const res = fetch('/strategies');
       const strategies = await res.json();
       const strategyName = rowData.setupName.split("-")[0]
       const currentStrategy = strategies[strategyName]["setups"][rowData.setupName]
@@ -653,12 +653,15 @@
       });
 
       // Handle form submission
-      form.addEventListener('submit', (e) => {
-          e.preventDefault();
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
           
-          const formData = new FormData(e.target);
-          const updatedData = Object.fromEntries(formData);
-          
+        const formData = new FormData(e.target);
+        const updatedData = Object.fromEntries(formData);
+        console.log(formData)
+        console.log(updatedData)
+        console.log(JSON.stringify(updatedData))
+         /* 
           // Update the grid
           const gridApi = gridOptions.api;
           const selectedNode = gridApi.getSelectedNodes()[0];
@@ -669,10 +672,27 @@
               };
               selectedNode.setData(updatedRowData);
           }
-          
-          // Close the modal
-          modal.classList.remove('flex');
-          modal.classList.add('hidden');
+          */
+        // try{
+        //   const response = await fetch('/updateSetup',{
+        //     method:'POST',
+        //     body: formData
+        //   });
+        //   if (response.ok){
+        //     alert("Data submitted succesfully!");
+        //     // Close the modal
+        //     modal.classList.remove('flex');
+        //     modal.classList.add('hidden');
+        //   }else{
+        //     alert("Submission failed.");
+        //   };
+        // } catch (error){
+        //   console.log(error);
+        //   alert("An error occurred.");
+        // } finally{
+        //   fetchStrategies();
+        // }
+        
       });
     });
   </script>

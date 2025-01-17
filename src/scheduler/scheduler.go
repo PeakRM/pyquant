@@ -359,7 +359,7 @@ func addStrategyToConfigFile(scriptPath, strategyName, typeVal, setupName, marke
 	shared_strategy_config := GetSharedFilePath("strategy-config.json")
 	// 4) Persist to JSON
 	if err := saveStrategies(shared_strategy_config); err != nil {
-		log.Printf("Failed to save config: " + err.Error())
+		log.Println("Failed to save config: ", err.Error())
 		return
 	}
 }
@@ -447,6 +447,7 @@ func updateSetup(w http.ResponseWriter, r *http.Request) {
 	// 3) Update setup fields from form data
 	// Preserve existing values that we don't want to modify
 	foundSetup.Market = r.FormValue("market")
+	foundSetup.ContractId = r.FormValue("market")
 	foundSetup.Timeframe = r.FormValue("timeframe")
 	foundSetup.Schedule = r.FormValue("schedule")
 	foundSetup.MarketData = strings.Split(r.FormValue("additionalData"), ",") // Assuming additional data maps to MarketData
