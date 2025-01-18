@@ -447,10 +447,10 @@ func updateSetup(w http.ResponseWriter, r *http.Request) {
 	// 3) Update setup fields from form data
 	// Preserve existing values that we don't want to modify
 	foundSetup.Market = r.FormValue("market")
-	foundSetup.ContractId = r.FormValue("market")
+	foundSetup.ContractId, _ = strconv.Atoi(r.FormValue("contract_id"))
 	foundSetup.Timeframe = r.FormValue("timeframe")
 	foundSetup.Schedule = r.FormValue("schedule")
-	foundSetup.MarketData = strings.Split(r.FormValue("additionalData"), ",") // Assuming additional data maps to MarketData
+	foundSetup.MarketData = strings.Split(r.FormValue("otherMarketData"), ",")
 
 	// 4) Update the local strategies map
 	strat := strategies[foundStrategy]

@@ -138,12 +138,12 @@
         </div>
 
         <div>
-          <label class="block font-medium mb-1" for="additionalData">Additional Data</label>
+          <label class="block font-medium mb-1" for="otherMarketData">Additional Data</label>
           <input 
             class="block w-full border rounded p-1" 
             type="text" 
-            id="additionalData" 
-            name="additionalData"
+            id="otherMarketData" 
+            name="otherMarketData"
           />
         </div>
 
@@ -186,7 +186,7 @@
             type="text" 
             id="editSetupName" 
             name="setupName"
-            disabled="disabled"
+            readonly="true"
           />
         </div>
         
@@ -197,7 +197,7 @@
             type="text" 
             id="editMarket" 
             name="market"
-            disabled="disabled"
+            readonly="true"
           />
         </div>
 
@@ -232,12 +232,12 @@
         </div>
 
         <div>
-          <label class="block font-medium mb-1" for="editAdditionalData">Additional Data</label>
+          <label class="block font-medium mb-1" for="editOtherMarketData">Other Market Data</label>
           <input 
             class="block w-full border rounded p-1" 
             type="text" 
-            id="editAdditionalData" 
-            name="additionalData"
+            id="editOtherMarketData" 
+            name="otherMarketData"
           />
         </div>
 
@@ -539,7 +539,7 @@
       const contractId = document.getElementById('contractId').value;
       const timeframe = document.getElementById('timeframe').value;
       const schedule = document.getElementById('schedule').value;
-      const additionalData = document.getElementById('additionalData').value;
+      const otherMarketData = document.getElementById('otherMarketData').value;
 
       const formData = new FormData();
       if (file) formData.append('uploaded_file', file);
@@ -550,7 +550,7 @@
       formData.append('contract_id', contractId);
       formData.append('timeframe', timeframe);
       formData.append('schedule', schedule);
-      formData.append('additionalData', additionalData);
+      formData.append('otherMarketData', otherMarketData);
 
       try {
         const response = await fetch('/uploadNewStrategy', {
@@ -609,15 +609,13 @@
   <script>
     // Function to open the edit modal and populate it with data
     async function openEditSetupModal(rowData) {
-      const res = fetch('/strategies');
+      const res = await fetch('/strategies');
       const strategies = await res.json();
       const strategyName = rowData.setupName.split("-")[0]
       const currentStrategy = strategies[strategyName]["setups"][rowData.setupName]
 
       const modal = document.getElementById('editSetupModalOverlay');
       const form = document.getElementById('editSetupForm');
-      
-
 
       // Populate form fields
       document.getElementById('editSetupName').value = rowData.setupName || ''; //should not be editable
@@ -625,7 +623,7 @@
       document.getElementById('editTimeframe').value = rowData.timeframe || '';
       document.getElementById('editContractId').value = currentStrategy.contract_id || '';
       document.getElementById('editSchedule').value = rowData.schedule || '';
-      document.getElementById('editAdditionalData').value = rowData.additionalData || '';
+      document.getElementById('editOtherMarketData').value = currentStrategy.market_data.toString() || '';
       
       // Show the modal
       modal.classList.remove('hidden');
@@ -655,43 +653,33 @@
       // Handle form submission
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
-          
         const formData = new FormData(e.target);
         const updatedData = Object.fromEntries(formData);
-        console.log(formData)
-        console.log(updatedData)
-        console.log(JSON.stringify(updatedData))
-         /* 
-          // Update the grid
-          const gridApi = gridOptions.api;
-          const selectedNode = gridApi.getSelectedNodes()[0];
-          if (selectedNode) {
-              const updatedRowData = {
-                  ...selectedNode.data,
-                  ...updatedData
-              };
-              selectedNode.setData(updatedRowData);
-          }
-          */
-        // try{
-        //   const response = await fetch('/updateSetup',{
-        //     method:'POST',
-        //     body: formData
-        //   });
-        //   if (response.ok){
-        //     alert("Data submitted succesfully!");
-        //     // Close the modal
-        //     modal.classList.remove('flex');
-        //     modal.classList.add('hidden');
-        //   }else{
-        //     alert("Submission failed.");
-        //   };
-        // } catch (error){
-        //   console.log(error);
-        //   alert("An error occurred.");
-        // } finally{
-        //   fetchStrategies();
-        // }
+        const urlEncodedData = new URLSearchParams(formData);
+
+        console.log(updatedData);
+        try{
+          const response = await fetch('/updateSetup' ,{
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: urlEncodedData
+          });
+          if (response.ok){
+            alert("Data submitted succesfully!");
+            // Close the modal
+            modal.classList.remove('flex');
+            modal.classList.add('hidden');
+          }else{
+            const errorText = await response.text();
+            console.log("Error response:", errorText);
+            alert("Submission failed: " + errorText);
+          };
+        } catch (error){
+          console.log(error);
+          alert("An error occurred.");
+        } finally{
+          fetchStrategies();
+        }
         
       });
     });
