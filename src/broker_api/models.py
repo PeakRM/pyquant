@@ -1,6 +1,6 @@
 from enum import Enum
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Union
 from datetime import datetime
 
 # Data Models
@@ -11,6 +11,7 @@ class OrderType(str, Enum):
 class OrderSide(str, Enum):
     BUY = "BUY"
     SELL = "SELL"
+    HOLD = "HOLD"
 
 class ContractType(str, Enum):
     STOCK = "STK"
@@ -24,12 +25,23 @@ class Contract(BaseModel):
     currency: str = "USD"
     expiry: Optional[str] = None
 
-class OrderRequest(BaseModel):
-    contract: Contract
-    order_type: OrderType
+class Trade(BaseModel):
+    strategy_name: str
+    contract_id: int
+    exchange: str
+    symbol: str
     side: OrderSide
-    quantity: float
-    limit_price: Optional[float] = None
+    quantity: Union[int, float]
+
+class Order(BaseModel):
+    trade: Trade
+    price: float
+    timestamp: str
+    # contract: Contract
+    # order_type: OrderType
+    # side: OrderSide
+    # quantity: float
+    # limit_price: Optional[float] = None
 
 class Fill(BaseModel):
     order_id: str
@@ -40,7 +52,7 @@ class Fill(BaseModel):
     side: OrderSide
 
 class Quote(BaseModel):
-    contract: Contract
+    symbol: str
     bid: Optional[float]
     ask: Optional[float]
     last: Optional[float]

@@ -2,8 +2,8 @@ from pydantic import BaseModel
 from typing import Union, Literal
 import datetime
 
-# BROKER_API = "http://127.0.0.1:8000"
-BROKER_API = "http://broker_api:8000"
+BROKER_API = "http://127.0.0.1:8000"
+# BROKER_API = "http://broker_api:8000"
 
 class Position(BaseModel):
     symbol: str

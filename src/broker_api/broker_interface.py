@@ -3,6 +3,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 from fastapi import HTTPException
 import ib_insync
+from ib_insync import util
 from models import *
 from dotenv import load_dotenv
 import os
@@ -37,7 +38,7 @@ class BrokerInterface(ABC):
         pass
 
     @abstractmethod
-    async def place_order(self, order_request: OrderRequest) -> str:
+    async def place_order(self, order_request: Order) -> str:
         pass
 
     @abstractmethod
@@ -78,7 +79,14 @@ class IBBroker(BrokerInterface):
             self._connected = False
         return True
 
-    def _convert_contract(self, contract: Contract) -> ib_insync.Contract:
+    def _convert_contract(self, contract: Optional[Contract], contract_id:Optional[int],exchange:Optional[str]) -> ib_insync.Contract:
+        if contract is None:
+            try:
+                return ib_insync.Contract(conId=contract_id, exchange=exchange)
+            except Exception:
+                raise ValueError(f"You did not pass the correct parameters: \n\t{contract}\n\t{contract_id}\n\t{exchange}")
+
+
         if contract.contract_type == ContractType.STOCK:
             return ib_insync.Stock(contract.symbol, contract.exchange or "SMART", contract.currency)
         elif contract.contract_type == ContractType.FUTURE:
@@ -93,10 +101,11 @@ class IBBroker(BrokerInterface):
         
         try:
             await self.ib.qualifyContractsAsync(ib_contract)
-            tickers = self.ib.reqMktData(ib_contract)
+            tickers = self.ib.reqMktData(ib_contract, snapshot=True)
             
             return Quote(
-                contract=contract,
+                # contract=contract,
+                symbol=contract.symbol,
                 bid=tickers.bid,
                 ask=tickers.ask,
                 last=tickers.last,
@@ -105,11 +114,41 @@ class IBBroker(BrokerInterface):
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to get quote: {str(e)}")
 
+    async def get_quote_by_contract_id(self,exchange:str, contract_id:int) -> Quote:
+        await self.connect()
+        ib_contract = ib_insync.Contract(conId=contract_id, exchange=exchange)
+        
+        try:
+            await self.ib.qualifyContractsAsync(ib_contract)
+            tickers = self.ib.reqMktData(ib_contract, snapshot=True)
+
+            return Quote(
+                symbol=ib_contract.symbol,
+                bid=tickers.bid,
+                ask=tickers.ask,
+                last=tickers.last,
+                timestamp=datetime.now()
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to get quote: {str(e)}")
+  
     async def get_fills(self, order_id: Optional[str] = None) -> List[Fill]:
         await self.connect()
         fills = []
         
         try:
+            # if order_id is None:
+            #     for fill in self.ib.fills():
+            #         # print (order.order.orderId)
+            #         # if fill[1]['orderId'] == orderId:
+            #         fills.append(Fill(
+            #             order_id = fill[1]['orderId'],
+            #             order_status = "Filled",
+            #             qty = fill[1]['cumQty'],
+            #             avg_fill_price = fill[1]['avgPrice'],
+            #             time_submitted = fill[-1],# datetime.datetime.now().strftime("%y-%m-%d %H:%M:%S")
+            #             conId = fill[0]["conId"]))
+            # else:
             trades = self.ib.trades()
             for trade in trades:
                 if order_id and trade.order.orderId != order_id:
@@ -129,28 +168,30 @@ class IBBroker(BrokerInterface):
                     price=trade.execution.price,
                     side=OrderSide.BUY if trade.order.action == "BUY" else OrderSide.SELL
                 ))
-                
+            
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to get fills: {str(e)}")
             
         return fills
 
-    async def place_order(self, order_request: OrderRequest) -> str:
+    async def place_order(self, order: Order) -> str:
         await self.connect()
-        ib_contract = self._convert_contract(order_request.contract)
+        ib_contract = self._convert_contract(contract_id=order.trade.contract_id,
+                                             exhcange=order.trade.exchange)
         
         try:
             await self.ib.qualifyContractsAsync(ib_contract)
             
             ib_order = ib_insync.Order(
-                action="BUY" if order_request.side == OrderSide.BUY else "SELL",
-                totalQuantity=order_request.quantity,
-                orderType="MKT" if order_request.order_type == OrderType.MARKET else "LMT",
-                lmtPrice=order_request.limit_price if order_request.order_type == OrderType.LIMIT else None
-            )
+                action="BUY" if order.trade.side == OrderSide.BUY else "SELL",
+                totalQuantity=order.trade.quantity,
+                # orderType="MKT" if order.order_type == OrderType.MARKET else "LMT",
+                orderType="LMT",
+                # lmtPrice=order.limit_price if order.order_type == OrderType.LIMIT else None
+                lmtPrice=order.price)
             
             trade = await self.ib.placeOrderAsync(ib_contract, ib_order)
-            return str(trade.order.orderId)
+            return str(trade.order.orderId)# TODO TEST THIS
             
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to place order: {str(e)}")
@@ -214,7 +255,6 @@ class IBBroker(BrokerInterface):
         except Exception:
             return False
 
-
     def _calculate_duration(self, start_time: datetime, end_time: datetime) -> str:
         # Calculate the duration string based on the time difference
         diff = end_time - start_time
@@ -230,6 +270,27 @@ class IBBroker(BrokerInterface):
             return "1 Y"
         else:
             return "5 Y"
+        
+    async def get_current_bar_open_price(self, contract_id:int, exchange:str) -> float:
+        await self.connect()
+        ib_contract = self._convert_contract(contract_id=contract_id, exchange=exchange)
+        
+        try:
+            await self.ib.qualifyContractsAsync(ib_contract)
+            bars = self.ib.reqHistoricalData(
+                ib_contract,
+                endDateTime='',
+                durationStr='120 S',
+                barSizeSetting='1 min',
+                whatToShow='TRADES',
+                useRTH=True,
+                formatDate=1)
+            # print(time.ctime())
+            # print(util.df(bars))
+            return util.df(bars)['open'].iloc[-1]
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to get current bar open: {str(e)}")
+
 
 class TestBroker(BrokerInterface):
     def __init__(self):
@@ -288,7 +349,7 @@ class TestBroker(BrokerInterface):
         prices = self._simulate_price(contract.symbol)
         
         return Quote(
-            contract=contract,
+            contract=contract.symbol,
             bid=prices["bid"],
             ask=prices["ask"],
             last=prices["last"],
@@ -309,7 +370,7 @@ class TestBroker(BrokerInterface):
         
         return fills
 
-    async def place_order(self, order_request: OrderRequest) -> str:
+    async def place_order(self, order_request: Order) -> str:
         await self.connect()
         if not self._connected:
             raise HTTPException(status_code=500, detail="Not connected")
@@ -357,13 +418,7 @@ class TestBroker(BrokerInterface):
         
         return order_id
 
-    async def get_historical_data(
-        self,
-        contract: Contract,
-        start_time: datetime,
-        end_time: datetime,
-        bar_size: str
-    ) -> List[Dict[str, Any]]:
+    async def get_historical_data(self, contract: Contract, start_time: datetime, end_time: datetime, bar_size: str) -> List[Dict[str, Any]]:
         await self.connect()
         if not self._connected:
             raise HTTPException(status_code=500, detail="Not connected")

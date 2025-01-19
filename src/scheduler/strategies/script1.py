@@ -1,5 +1,5 @@
 import pandas_market_calendars as mcal
-import datetime
+from datetime import datetime
 import pandas as pd
 from typing import Dict, Union, Literal, Any, List
 from pydantic import BaseModel
@@ -29,9 +29,16 @@ logger.setLevel(logging.DEBUG)
 
 
 
+# def run(account_data: AccountData, market1:str):
 def run(account_data: AccountData, market1:str):
-    STRATEGY_NAME="TEST1"
-    r = requests.get(f"{BROKER_API}/historicalData?symbol={market1}&securityType=STK&broker=IB&bar_size=1%20day&lookback=60%20D")
+    today = dt.datetime.today()
+    r = requests.post(f"{BROKER_API}/historicalData",data=dict(symbol=market1,
+                                                               securityType="STK",
+                                                               bar_size="1 day",
+                                                               end_date=today,
+                                                               start_date=today - dt.timedelta(days=60))
+                                                            #    lookback="60D")
+                                                               )
     assert r.status_code == httpx.codes.OK, r.raise_for_status()
     market1_data = pd.DataFrame.from_records(r.json())
     market1_data['date'] = pd.to_datetime(market1_data.date)
@@ -40,7 +47,8 @@ def run(account_data: AccountData, market1:str):
 
 
     if int(account_data.position.quantity) != 0:
-        r = requests.get(f"{BROKER_API}/currentBarOpen?symbol={market1}&securityType=FUT&broker=IB")
+        r = requests.post(f"{BROKER_API}/currentBarOpen",data=dict(contract_id=account_data.position.contract_id,
+                                                                   exchange=account_data.position.exchange))
         assert r.status_code == httpx.codes.OK, r.raise_for_status()
         current_bar_open = pd.DataFrame.from_records(r.json())
         if current_bar_open > account_data.position.cost_basis:
@@ -86,7 +94,6 @@ def run(account_data: AccountData, market1:str):
 def check_position(symbol:str, strategy_name:str)->str:
     with open("/shared/positions.json",'r') as position_file:
         positions = json.load(position_file)
-    
     try:
         strategy_position = positions[f"{strategy_name}-{symbol}"]
         position_status = strategy_position['status'].lower() 
@@ -94,15 +101,29 @@ def check_position(symbol:str, strategy_name:str)->str:
         print("no position found in file")
         position_status=""
     return  position_status
+def get_position_data(symbol:str, strategy_name:str):
+    with open("/shared/positions.json",'r') as position_file:
+        positions = json.load(position_file)
+    try:
+        strategy_position = positions[f"{strategy_name}-{symbol}"]
+        return strategy_position
+    except KeyError:
+        print("no position found in file")
+        position_status=""
+    # return  position_status
 
-def generate_test_trade(symbol:str, exchange:str, strategy_name:str) -> List[Trade]:
-    position_status = check_position(symbol=symbol, strategy_name=strategy_name)
-    
+def generate_test_trade(symbol:str, exchange:str, strategy_name:str, contract_id:int) -> List[Trade]:
+    position_data = get_position_data(symbol=symbol, strategy_name=strategy_name)
+    position_status=position_data["status"]
+    r = requests.post(f"{BROKER_API}/currentBarOpen",data=dict(contract_id=contract_id,
+                                                                exchange=exchange))
+    assert r.status_code == httpx.codes.OK, r.raise_for_status()
+    current_bar_open = pd.DataFrame.from_records(r.json())
     if position_status == "filled":
-
-        return  [Trade(strategy_name=strategy_name,
+        if current_bar_open > float(position_data["cost_basis"]):
+            return  [Trade(strategy_name=strategy_name,
                         symbol=symbol,
-                         contract_id=99999999, # TODO - ADD THIS FIELD TO STRATEGY CONFIG
+                         contract_id=contract_id,
                          exchange=exchange,
                          side='SELL',
                         quantity=1)] 
@@ -142,22 +163,40 @@ def initialize(config_data):
     strategy_settings = {}
     strategy_settings["exchange"] = mkt[0]
     strategy_settings["symbol"] = mkt[1]
+    strategy_settings["contract_id"] = float(config_data["contract_id"])
+    strategy_settings["interval"] = get_interval(config_data["timeframe"])
     return strategy_settings
 
+def get_interval(freq:str)->int:
+    if freq=="1 min":
+        return 60
+    if freq=="5 min":
+        return 60*5
+    elif freq=="15 min":
+        return 60*15
+    elif freq=="1 hour":
+        return 60*60
+    elif freq=="4 hour":
+        return 60*60*4
+    else:
+        return 60*60*24
 
 if __name__ == "__main__":
 
     setup_name = sys.argv[1]
     config_data = load_and_parse_config("/shared/strategy-config.json", setup_name=setup_name)
     strategy_settings = initialize(config_data)
-    strategy_settings["strategy_name"] = setup_name.split("-")[0]
+    strategy_settings["name"] = setup_name.split("-")[0]
     while True:
 
         # if is_within_est_business_hours():
         if True:
-
-            # trade=run(account_data=AccountData(**{
-            #                 "position":{
+            run_time = datetime.now()
+            # trade=run(symbol=strategy_settings['symbol'],
+            #           exchange=strategy_settings['exchange'],
+            #           strategy_name=strategy_settings["name"])
+                    #   =AccountData(**{
+                            # "position":{
             #                 "symbol":"MES",
             #                 "exchange":"CME",
             #                 "quantity":0.0,
@@ -168,7 +207,8 @@ if __name__ == "__main__":
             #                 }) ,market1="SPY")
             trade = generate_test_trade(symbol=strategy_settings['symbol'],
                                         exchange=strategy_settings['exchange'],
-                                        strategy_name=strategy_settings["strategy_name"])
+                                        strategy_name=strategy_settings["name"],
+                                        strategy_name=strategy_settings["contract_id"])
             print(trade)
 
             if trade:
@@ -177,7 +217,7 @@ if __name__ == "__main__":
                 except Exception as e:
                     print("Failed to submit trade:", e)
 
-            time.sleep(60)
+            time.sleep(strategy_settings["interval"] + (datetime.now()-run_time).seconds)
         time.sleep(1)
 
 
