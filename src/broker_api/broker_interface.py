@@ -12,6 +12,8 @@ import random
 from datetime import datetime, timedelta
 import numpy as np
 import re
+import nest_asyncio
+nest_asyncio.apply()
 
 # Load environment variables
 env_path = Path('.env')
@@ -56,13 +58,14 @@ class BrokerInterface(ABC):
         pass
 
 # Interactive Brokers Implementation
-class IBBroker(BrokerInterface):
+class IBKRBroker(BrokerInterface):
     def __init__(self):
         self.host = os.getenv('IB_HOST', '127.0.0.1')
-        self.port = int(os.getenv('IB_PORT', '7497'))
+        self.port = int(os.getenv('IB_PORT', '7496'))
         self.client_id = int(os.getenv('IB_CLIENT_ID', '1'))
         self.ib = ib_insync.IB()
         self._connected = False
+        print(self.port)
 
     async def connect(self) -> bool:
         if not self._connected:
@@ -79,7 +82,7 @@ class IBBroker(BrokerInterface):
             self._connected = False
         return True
 
-    def _convert_contract(self, contract: Optional[Contract], contract_id:Optional[int],exchange:Optional[str]) -> ib_insync.Contract:
+    def _convert_contract(self, contract: Optional[Contract]=None, contract_id:Optional[int]=None,exchange:Optional[str]=None) -> ib_insync.Contract:
         if contract is None:
             try:
                 return ib_insync.Contract(conId=contract_id, exchange=exchange)
@@ -102,7 +105,7 @@ class IBBroker(BrokerInterface):
         try:
             await self.ib.qualifyContractsAsync(ib_contract)
             tickers = self.ib.reqMktData(ib_contract, snapshot=True)
-            
+            self.ib.sleep(1)
             return Quote(
                 # contract=contract,
                 symbol=contract.symbol,
@@ -121,6 +124,7 @@ class IBBroker(BrokerInterface):
         try:
             await self.ib.qualifyContractsAsync(ib_contract)
             tickers = self.ib.reqMktData(ib_contract, snapshot=True)
+            self.ib.sleep(1)
 
             return Quote(
                 symbol=ib_contract.symbol,
@@ -132,43 +136,19 @@ class IBBroker(BrokerInterface):
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to get quote: {str(e)}")
   
-    async def get_fills(self, order_id: Optional[str] = None) -> List[Fill]:
+    async def get_fills(self) -> List[Fill]:
         await self.connect()
         fills = []
-        
         try:
-            # if order_id is None:
-            #     for fill in self.ib.fills():
-            #         # print (order.order.orderId)
-            #         # if fill[1]['orderId'] == orderId:
-            #         fills.append(Fill(
-            #             order_id = fill[1]['orderId'],
-            #             order_status = "Filled",
-            #             qty = fill[1]['cumQty'],
-            #             avg_fill_price = fill[1]['avgPrice'],
-            #             time_submitted = fill[-1],# datetime.datetime.now().strftime("%y-%m-%d %H:%M:%S")
-            #             conId = fill[0]["conId"]))
-            # else:
-            trades = self.ib.trades()
-            for trade in trades:
-                if order_id and trade.order.orderId != order_id:
-                    continue
-                    
+            for fill in self.ib.fills():
+                print(fill)
+                # print (order.order.orderId)
                 fills.append(Fill(
-                    order_id=str(trade.order.orderId),
-                    contract=Contract(
-                        symbol=trade.contract.symbol,
-                        contract_type=ContractType(trade.contract.secType),
-                        exchange=trade.contract.exchange,
-                        currency=trade.contract.currency,
-                        expiry=getattr(trade.contract, 'lastTradeDateOrContractMonth', None)
-                    ),
-                    execution_time=trade.time,
-                    quantity=trade.execution.shares,
-                    price=trade.execution.price,
-                    side=OrderSide.BUY if trade.order.action == "BUY" else OrderSide.SELL
-                ))
-            
+                    order_id = fill.execution.orderId,
+                    quantity = fill.execution.cumQty,
+                    price = fill.execution.avgPrice,
+                    time = fill.time)  #, datetime.datetime.now().strftime("%y-%m-%d %H:%M:%S")
+                )
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to get fills: {str(e)}")
             
@@ -177,7 +157,7 @@ class IBBroker(BrokerInterface):
     async def place_order(self, order: Order) -> str:
         await self.connect()
         ib_contract = self._convert_contract(contract_id=order.trade.contract_id,
-                                             exhcange=order.trade.exchange)
+                                             exchange=order.trade.exchange)
         
         try:
             await self.ib.qualifyContractsAsync(ib_contract)
@@ -190,21 +170,15 @@ class IBBroker(BrokerInterface):
                 # lmtPrice=order.limit_price if order.order_type == OrderType.LIMIT else None
                 lmtPrice=order.price)
             
-            trade = await self.ib.placeOrderAsync(ib_contract, ib_order)
+            trade = self.ib.placeOrder(ib_contract, ib_order)
             return str(trade.order.orderId)# TODO TEST THIS
             
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to place order: {str(e)}")
 
-    async def get_historical_data(
-        self,
-        contract: Contract,
-        start_time: datetime,
-        end_time: datetime,
-        bar_size: str
-    ) -> List[Dict[str, Any]]:
+    async def get_historical_data(self, contract: Contract, start_time: datetime, end_time: datetime, bar_size: str) -> List[Dict[str, Any]]:
         await self.connect()
-        ib_contract = self._convert_contract(contract)
+        ib_contract = self._convert_contract(contract=contract)
         
         try:
             await self.ib.qualifyContractsAsync(ib_contract)
@@ -271,9 +245,11 @@ class IBBroker(BrokerInterface):
         else:
             return "5 Y"
         
-    async def get_current_bar_open_price(self, contract_id:int, exchange:str) -> float:
+    async def get_current_minute_bar_open(self, contract_id:int, exchange:str) -> float:
+        
         await self.connect()
         ib_contract = self._convert_contract(contract_id=contract_id, exchange=exchange)
+        print(ib_contract)
         
         try:
             await self.ib.qualifyContractsAsync(ib_contract)
@@ -283,10 +259,10 @@ class IBBroker(BrokerInterface):
                 durationStr='120 S',
                 barSizeSetting='1 min',
                 whatToShow='TRADES',
-                useRTH=True,
+                useRTH=False,
                 formatDate=1)
             # print(time.ctime())
-            # print(util.df(bars))
+            print(util.df(bars))
             return util.df(bars)['open'].iloc[-1]
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to get current bar open: {str(e)}")
@@ -312,11 +288,15 @@ class TestBroker(BrokerInterface):
 
     async def _generate_order_id(self) -> str:
         await self.connect()
+        if not self._connected:
+            raise HTTPException(status_code=500, detail="Not connected")
         return f"TEST_{int(datetime.now().timestamp())}_{random.randint(1000, 9999)}"
 
     async def _simulate_price(self, symbol: str) -> dict:
         """Generate simulated prices for a symbol."""
         await self.connect()
+        if not self._connected:
+            raise HTTPException(status_code=500, detail="Not connected")
         if symbol not in self._prices:
             base_price = random.uniform(10, 1000)
             spread = base_price * 0.001  # 0.1% spread
@@ -486,6 +466,8 @@ class TestBroker(BrokerInterface):
         output = int("".join([str(alphabet.index(c)) for c in full_string.lower()]))
         return output
         
+    async def get_current_bar_open(self, contract_id:int, exchange:str) -> float:
+        return 300.0
 
 # Update BrokerFactory to include TestBroker
 class BrokerFactory:
@@ -495,9 +477,11 @@ class BrokerFactory:
     def get_broker(cls, broker_type: str) -> BrokerInterface:
         if broker_type not in cls._brokers:
             if broker_type == "IB":
-                cls._brokers[broker_type] = IBBroker()
+                cls._brokers[broker_type] = IBKRBroker()
             elif broker_type == "TEST":
                 cls._brokers[broker_type] = TestBroker()
             else:
                 raise ValueError(f"Unsupported broker type: {broker_type}")
         return cls._brokers[broker_type]
+
+

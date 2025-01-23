@@ -39,9 +39,10 @@ type Order struct {
 }
 
 type Fill struct {
-	Id       int     `json:"order_id"`
-	Price    float64 `json:"price"`
-	Quantity float64 `json:"quantity"`
+	Id       int       `json:"order_id"`
+	Price    float64   `json:"price"`
+	Quantity float64   `json:"quantity"`
+	Time     time.Time `json:"time"`
 	// Status   string  `json:"status"`
 }
 
@@ -225,7 +226,7 @@ func monitorFill(orderResp OrderResponse) {
 	for !isFilled {
 
 		// url := fmt.Sprintf("http://127.0.0.1:8000/fills?order_id=%d", orderResp.OrderId)
-		url := fmt.Sprintf("http://127.0.0.1:8000/fills")
+		url := "http://127.0.0.1:8000/fills"
 		// url := fmt.Sprintf("http://broker_api:8000/fills?Id=%d", orderResp.OrderId)
 		resp, err := http.Get(url)
 		if err != nil {

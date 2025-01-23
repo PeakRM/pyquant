@@ -44,12 +44,13 @@ class Order(BaseModel):
     # limit_price: Optional[float] = None
 
 class Fill(BaseModel):
-    order_id: str
-    contract: Contract
-    execution_time: datetime
+    order_id: int
+    # contract: Contract
+    # execution_time: datetime
+    time: datetime
     quantity: float
     price: float
-    side: OrderSide
+    # side: OrderSide
 
 class Quote(BaseModel):
     symbol: str
