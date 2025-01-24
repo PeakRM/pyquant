@@ -68,6 +68,8 @@ func main() {
 	if err := loadStrategies(shared_strategy_config); err != nil {
 		log.Fatalf("Failed to load strategies: %v", err)
 	}
+	// 1a. Start process that checks for unexcpected Strategy Crashes
+	// strategyTerminationCheck()
 
 	// 2. Handle endpoints
 	http.HandleFunc("/strategies", handleListStrategies)
@@ -200,6 +202,19 @@ func positionStreamHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+}
+
+func strategyTerminationCheck() {
+	ticker := time.NewTicker(30 * time.Second) // Create a ticker that fires every 30 seconds
+	defer ticker.Stop()                        // Stop the ticker when the program exits
+
+	go func() { // Start a goroutine
+		for range ticker.C { // Loop over the ticker's channel
+			fmt.Print("tick")
+			checkTerminatedScripts()
+		}
+	}()
+
 }
 
 // handleStrategyActions handles requests like:
@@ -481,6 +496,70 @@ func updateSetup(w http.ResponseWriter, r *http.Request) {
 // Start / Stop Script
 // -----------------------------------------------------------------
 
+func GetSharedVenvPath() (string, error) {
+	if pathExists("/usr/local/bin/python") {
+		return "/usr/local/bin/python", nil
+	}
+	if pathExists("C:/Users/Jon/Projects/pyquant/.venv") {
+		return "C:/Users/Jon/Projects/pyquant/.venv/Scripts/python.exe", nil
+	}
+	return "", fmt.Errorf("no python interpreter path found")
+
+}
+
+func isProcessRunning(cmd *exec.Cmd) bool {
+	if cmd.ProcessState == nil || !cmd.ProcessState.Exited() {
+		return true
+	}
+	return false
+}
+func getTerminatedProcesses() []string {
+	var terminated []string
+	runningMu.Lock()
+	for processKey, process := range runningProcs {
+		if !isProcessRunning(process) {
+			terminated = append(terminated, processKey)
+			delete(runningProcs, processKey)
+		}
+	}
+	runningMu.Unlock()
+	return terminated
+}
+func checkTerminatedScripts() {
+	fmt.Println("Checking scripts")
+	terminate := getTerminatedProcesses()
+	for _, processKey := range terminate {
+		fmt.Println("Process Terminated Unexpectedly: ", processKey)
+		strategyId := strings.Split(processKey, "|")
+		strategyName := strategyId[0]
+		setupName := strategyId[1]
+		// 1) Find the strategy & setup
+		strat, ok := strategies[strategyName]
+		if !ok {
+			fmt.Println("Strategy not found")
+			return
+		}
+		setup, ok := strat.Setups[setupName]
+		if !ok {
+			fmt.Println("Setup not found")
+			return
+		}
+		// Update to inactive
+		setup.Active = false
+
+		// 3) Update the local strategies map
+		strat.Setups[setupName] = setup
+		strategies[strategyName] = strat
+
+		shared_strategy_config := GetSharedFilePath("strategy-config.json")
+		// 4) Persist to JSON
+		if err := saveStrategies(shared_strategy_config); err != nil {
+			fmt.Printf("Failed to terminated strategy: %s", processKey)
+			return
+		}
+	}
+}
+
 // startScript spawns a python process for the given setup
 func startScript(scriptPath, strategyName, setupName string) error {
 	runningMu.Lock()
@@ -491,15 +570,13 @@ func startScript(scriptPath, strategyName, setupName string) error {
 	}
 	runningMu.Unlock()
 
-	venvPythonPath := "/usr/local/bin/python"
-
+	venvPythonPath, err := GetSharedVenvPath()
+	if err != nil {
+		return err
+	}
 	// First, verify the Python interpreter and the script exist
 	if err := checkPythonAndScript(venvPythonPath, scriptPath); err != nil {
 		fmt.Println(err)
-		// ex, err := os.Getwd()
-		// if err != nil {
-		// 	panic(err)
-		// }
 		return err
 	}
 

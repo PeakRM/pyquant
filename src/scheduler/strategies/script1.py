@@ -101,26 +101,36 @@ def check_position(symbol:str, strategy_name:str)->str:
         print("no position found in file")
         position_status=""
     return  position_status
-def get_position_data(symbol:str, strategy_name:str):
-    with open("/shared/positions.json",'r') as position_file:
+
+def get_position_data(symbol:str, strategy_name:str)->Position:
+    # with open("/shared/positions.json",'r') as position_file:
+    with open(r"C:\Users\Jon\Projects\pyquant\shared_files\positions.json",'r') as position_file:
         positions = json.load(position_file)
     try:
         strategy_position = positions[f"{strategy_name}-{symbol}"]
-        return strategy_position
+        return Position.model_validate(strategy_position)
     except KeyError:
         print("no position found in file")
-        position_status=""
-    # return  position_status
+        return  Position(symbol=symbol, exchange="", quantity=0., cost_basis=0.,
+                     datetime=dt.datetime.now(),contract_id=0,status="")
 
 def generate_test_trade(symbol:str, exchange:str, strategy_name:str, contract_id:int) -> List[Trade]:
     position_data = get_position_data(symbol=symbol, strategy_name=strategy_name)
-    position_status=position_data["status"]
-    r = requests.post(f"{BROKER_API}/currentBarOpen",data=dict(contract_id=contract_id,
-                                                                exchange=exchange))
+    position_status=position_data.status
+    print(position_data)
+    if position_status=="":
+        position_data.exchange=exchange
+        position_data.contract_id=contract_id
+        
+    r = requests.post(f"{BROKER_API}/api/IB/currentMinuteBarOpen/{exchange}/{contract_id}",)
+                    #   data=dict(contract_id=contract_id,exchange=exchange))
     assert r.status_code == httpx.codes.OK, r.raise_for_status()
-    current_bar_open = pd.DataFrame.from_records(r.json())
+    current_bar_open = r.json()#pd.DataFrame.from_records(r.json())
     if position_status == "filled":
-        if current_bar_open > float(position_data["cost_basis"]):
+        print(f"current price: {current_bar_open}\n cost basis: {position_data.cost_basis} ")
+
+        if current_bar_open > float(position_data.cost_basis):
+            # return ['SELL']
             return  [Trade(strategy_name=strategy_name,
                         symbol=symbol,
                          contract_id=contract_id,
@@ -135,12 +145,10 @@ def generate_test_trade(symbol:str, exchange:str, strategy_name:str, contract_id
 
         return  [Trade(strategy_name=strategy_name,
                         symbol=symbol,
-                         contract_id=99999999,
+                         contract_id=contract_id,
                          exchange=exchange,
                         side='BUY',
                         quantity=1)]  
-
-
 
 
 def is_within_est_business_hours() -> bool:
@@ -159,6 +167,7 @@ def is_within_est_business_hours() -> bool:
     return start_time <= now_est.time() <= end_time
 
 def initialize(config_data):
+    print(config_data)
     mkt = config_data["market"].split(":")
     strategy_settings = {}
     strategy_settings["exchange"] = mkt[0]
@@ -184,14 +193,18 @@ def get_interval(freq:str)->int:
 if __name__ == "__main__":
 
     setup_name = sys.argv[1]
-    config_data = load_and_parse_config("/shared/strategy-config.json", setup_name=setup_name)
+    # config_data = load_and_parse_config("/shared/strategy-config.json", setup_name=setup_name)
+    config_data = load_and_parse_config(r"C:\Users\Jon\Projects\pyquant\shared_files\strategy-config.json",
+                                        setup_name=setup_name)
     strategy_settings = initialize(config_data)
     strategy_settings["name"] = setup_name.split("-")[0]
+    time.sleep(60-dt.datetime.now().seconds)
     while True:
-
+        schedule_condition:bool=True
         # if is_within_est_business_hours():
-        if True:
-            run_time = datetime.now()
+        if schedule_condition:
+            
+            run_time = dt.datetime.now()
             # trade=run(symbol=strategy_settings['symbol'],
             #           exchange=strategy_settings['exchange'],
             #           strategy_name=strategy_settings["name"])
@@ -208,7 +221,7 @@ if __name__ == "__main__":
             trade = generate_test_trade(symbol=strategy_settings['symbol'],
                                         exchange=strategy_settings['exchange'],
                                         strategy_name=strategy_settings["name"],
-                                        strategy_name=strategy_settings["contract_id"])
+                                        contract_id=strategy_settings["contract_id"])
             print(trade)
 
             if trade:
@@ -217,7 +230,7 @@ if __name__ == "__main__":
                 except Exception as e:
                     print("Failed to submit trade:", e)
 
-            time.sleep(strategy_settings["interval"] + (datetime.now()-run_time).seconds)
+            time.sleep(strategy_settings["interval"] + (dt.datetime.now()-run_time).seconds)
         time.sleep(1)
 
 

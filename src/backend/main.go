@@ -32,18 +32,28 @@ type OrderResponse struct {
 	OrderId int
 }
 
+type Trade struct {
+	StrategyName string `json:"strategy_name"`
+	ContractId   int    `json:"contract_id"`
+	Exchange     string `json:"exchange"`
+	Symbol       string `json:"symbol"`
+	Side         string `json:"side"`
+	Quantity     int    `json:"quantity"`
+}
+
 type Order struct {
-	Trade      *pb.Trade // The incoming trade
-	PriceQuote float64   // Price quote fetched from the API
-	Timestamp  time.Time // Time the order was created
+	Trade      Trade     `json:"trade"`
+	PriceQuote float64   `json:"price"`
+	Timestamp  time.Time `json:"timestamp"`
 }
 
 type Fill struct {
-	Id       int       `json:"order_id"`
-	Price    float64   `json:"price"`
-	Quantity float64   `json:"quantity"`
-	Time     time.Time `json:"time"`
-	// Status   string  `json:"status"`
+	Id         int       `json:"order_id"`
+	Price      float64   `json:"price"`
+	Quantity   float64   `json:"quantity"`
+	Time       time.Time `json:"time"`
+	ContractId int       `json:"contract_id`
+	Side       string    `json:"side"`
 }
 
 type Quote struct {
@@ -108,8 +118,9 @@ func transmitOrder(order Order, testTrade bool) (int, error) {
 		return rand.Intn(1000), nil
 	}
 	// url := "http://127.0.0.1:8000/placeLimitOrder?broker=IB"
-	url := "http://127.0.0.1:8000/api/IB/order"
 	// url := "http://broker_api:8000/placeLimitOrder?broker=IB"
+
+	url := "http://127.0.0.1:8000/api/IB/order"
 	orderJSON, err := json.Marshal(order)
 	if err != nil {
 		fmt.Println("Error marshaling order to JSON:", err)
@@ -143,19 +154,19 @@ func transmitOrder(order Order, testTrade bool) (int, error) {
 		return 0, err
 
 	}
-	// print response body
-	//convert string to int
-	n, err := strconv.Atoi(string(body))
-	//check if error occured
-	if err != nil {
-		//executes if there is any error
-		fmt.Println(err)
-		return 0, err
 
+	var orderIDStr string
+	if err := json.Unmarshal(body, &orderIDStr); err != nil {
+		return 0, fmt.Errorf("error unmarshaling response: %v", err)
+	}
+
+	orderID, err := strconv.Atoi(orderIDStr)
+	if err != nil {
+		return 0, fmt.Errorf("error converting to int: %v", err)
 	}
 	fmt.Println("Order Sent")
 
-	return n, nil
+	return orderID, nil
 }
 
 func processNewTrades(workerId int) {
@@ -188,16 +199,27 @@ func processNewTrades(workerId int) {
 			log.Printf("%sFailed to fetch price for symbol %s: %v", workerInfo, trade.Symbol, err)
 			continue
 		}
-
+		quantity, err := strconv.Atoi(trade.Quantity)
+		if err != nil {
+			log.Printf("%sFailed to convert Quantity string to int for symbol %s: %v", workerInfo, trade.Quantity, err)
+			continue
+		}
 		// Create order
 		order := Order{
-			Trade:      trade,
+			Trade: Trade{
+				StrategyName: trade.StrategyName,
+				ContractId:   int(trade.ContractId),
+				Exchange:     trade.Exchange,
+				Symbol:       trade.Symbol,
+				Side:         trade.Side,
+				Quantity:     quantity,
+			},
 			PriceQuote: price,
 			Timestamp:  time.Now(),
 		}
 
 		// Send order
-		orderId, err := transmitOrder(order, true)
+		orderId, err := transmitOrder(order, false)
 		if err != nil {
 			log.Printf("%sFailed to subimt order for strategy-symbol %s-%s: %v", workerInfo, trade.StrategyName, trade.Symbol, err)
 			continue
@@ -226,7 +248,7 @@ func monitorFill(orderResp OrderResponse) {
 	for !isFilled {
 
 		// url := fmt.Sprintf("http://127.0.0.1:8000/fills?order_id=%d", orderResp.OrderId)
-		url := "http://127.0.0.1:8000/fills"
+		url := "http://127.0.0.1:8000/api/IB/fills"
 		// url := fmt.Sprintf("http://broker_api:8000/fills?Id=%d", orderResp.OrderId)
 		resp, err := http.Get(url)
 		if err != nil {

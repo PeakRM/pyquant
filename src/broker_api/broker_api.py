@@ -24,7 +24,7 @@ async def get_quote(broker: str, contract: Contract):
     broker_instance = BrokerFactory.get_broker(broker)
     return await broker_instance.get_quote(contract)
 
-@app.post("/api/{broker}/quote/{exchange}/{contract_id}")
+@app.get("/api/{broker}/quote/{exchange}/{contract_id}")
 async def get_quote_by_contract_id(broker: str, exchange:str, contract_id:int):
     if broker=="TEST": 
         raise NotImplementedError("Implement this fuction in TEST broker first.")
@@ -68,3 +68,10 @@ async def get_current_minute_bar_open(broker: str, exchange:str, contract_id:int
         raise NotImplementedError("Implement this fuction in TEST broker first.")
     broker_instance = BrokerFactory.get_broker(broker)
     return await broker_instance.get_current_minute_bar_open(exchange=exchange, contract_id=contract_id)
+
+@app.get("/api/{broker}/closePositions")
+async def close_all_positions(broker: str):
+    if broker=="TEST": 
+        raise NotImplementedError("Implement this fuction in TEST broker first.")
+    broker_instance = BrokerFactory.get_broker(broker)
+    return await broker_instance.close_all_positions()

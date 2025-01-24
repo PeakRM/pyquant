@@ -139,15 +139,17 @@ class IBKRBroker(BrokerInterface):
     async def get_fills(self) -> List[Fill]:
         await self.connect()
         fills = []
+        # print(self.ib.fills()[0])
         try:
             for fill in self.ib.fills():
-                print(fill)
-                # print (order.order.orderId)
                 fills.append(Fill(
                     order_id = fill.execution.orderId,
+                    contract_id=fill.contract.conId,
                     quantity = fill.execution.cumQty,
                     price = fill.execution.avgPrice,
-                    time = fill.time)  #, datetime.datetime.now().strftime("%y-%m-%d %H:%M:%S")
+                    time = fill.time,
+                    side="BUY" if fill.execution.side=="BOT" else "SELL"
+                    )  #, datetime.datetime.now().strftime("%y-%m-%d %H:%M:%S")
                 )
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to get fills: {str(e)}")
@@ -171,7 +173,7 @@ class IBKRBroker(BrokerInterface):
                 lmtPrice=order.price)
             
             trade = self.ib.placeOrder(ib_contract, ib_order)
-            return str(trade.order.orderId)# TODO TEST THIS
+            return str(trade.order.orderId)
             
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to place order: {str(e)}")
@@ -267,6 +269,21 @@ class IBKRBroker(BrokerInterface):
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to get current bar open: {str(e)}")
 
+    async def close_all_positions(self) -> int:
+        await self.connect()
+        print(self.ib.positions())
+        try:
+            for open_trade in self.ib.positions():
+                if open_trade is None:
+                    return 0
+                direction = 'BUY' if open_trade.position < 0 else 'SELL'
+                order = ib_insync.MarketOrder(direction, abs(open_trade.position))
+                await self.ib.qualifyContractsAsync(open_trade.contract)
+                self.ib.placeOrder(open_trade.contract, order)
+        except Exception as e:
+            print(e)
+            return 0
+        return 1
 
 class TestBroker(BrokerInterface):
     def __init__(self):
@@ -365,12 +382,13 @@ class TestBroker(BrokerInterface):
             
             fill = Fill(
                 order_id=order_id,
-                contract=order_request.contract,
-                execution_time=datetime.now(),
+                contract_id=order_request.contract.contract_id,
+                time=datetime.now(),
                 quantity=order_request.quantity,
                 price=fill_price,
                 side=order_request.side
             )
+
             self._fills[order_id] = fill
             
             # Update position

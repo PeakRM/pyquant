@@ -11,7 +11,7 @@ class OrderType(str, Enum):
 class OrderSide(str, Enum):
     BUY = "BUY"
     SELL = "SELL"
-    HOLD = "HOLD"
+    # HOLD = "HOLD"
 
 class ContractType(str, Enum):
     STOCK = "STK"
@@ -45,12 +45,11 @@ class Order(BaseModel):
 
 class Fill(BaseModel):
     order_id: int
-    # contract: Contract
-    # execution_time: datetime
+    contract_id: float
     time: datetime
     quantity: float
     price: float
-    # side: OrderSide
+    side: OrderSide
 
 class Quote(BaseModel):
     symbol: str
