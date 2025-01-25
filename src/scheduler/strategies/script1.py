@@ -7,10 +7,10 @@ import sys
 import requests
 import httpx
 import json
-from definitions import *
+from scheduler.strategies.utils.definitions import *
 import logging
-import trade_client
-from config import load_and_parse_config
+import scheduler.strategies.utils.trade_client as trade_client
+from scheduler.strategies.utils.config import load_and_parse_config
 
 import datetime as dt
 import time
@@ -54,7 +54,7 @@ def run(account_data: AccountData, market1:str):
         if current_bar_open > account_data.position.cost_basis:
             try:
                 logger.info("Generating closing trade")
-                trade = Trade(strategy_name=STRATEGY_NAME,
+                trade = Trade(strategy_name='test',
                             symbol=account_data.position.symbol,
                             contract_id=account_data.position.contract_id,
                             exchange=account_data.position.exchange,
@@ -68,7 +68,7 @@ def run(account_data: AccountData, market1:str):
     if int(account_data.position.quantity) == 0:
         logger.info("Generating opening trade")
         try:
-            trade = Trade(strategy_name=STRATEGY_NAME,
+            trade = Trade(strategy_name='test',
                           symbol=account_data.position.symbol,
                           contract_id=account_data.position.contract_id,
                           exchange=account_data.position.exchange,
@@ -82,7 +82,7 @@ def run(account_data: AccountData, market1:str):
 
     if len(trades) == 2:
         logger.info("Rolling position")
-        trades = [Trade(strategy_name=STRATEGY_NAME,
+        trades = [Trade(strategy_name='test',
                         symbol=account_data.position.symbol,
                          contract_id=account_data.position.contract_id,
                          exchange=account_data.position.exchange,
@@ -172,7 +172,7 @@ def initialize(config_data):
     strategy_settings = {}
     strategy_settings["exchange"] = mkt[0]
     strategy_settings["symbol"] = mkt[1]
-    strategy_settings["contract_id"] = float(config_data["contract_id"])
+    strategy_settings["contract_id"] = int(config_data["contract_id"])
     strategy_settings["interval"] = get_interval(config_data["timeframe"])
     return strategy_settings
 
@@ -199,6 +199,7 @@ if __name__ == "__main__":
     strategy_settings = initialize(config_data)
     strategy_settings["name"] = setup_name.split("-")[0]
     time.sleep(60-dt.datetime.now().seconds)
+    print(dt.datetime.now)
     while True:
         schedule_condition:bool=True
         # if is_within_est_business_hours():

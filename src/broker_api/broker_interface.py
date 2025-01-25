@@ -208,6 +208,25 @@ class IBKRBroker(BrokerInterface):
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to get historical data: {str(e)}")
 
+    async def get_historical_data_by_contract_id(self, contract_id: int, exchange:str, start_time: datetime,
+                                                 end_time: datetime, bar_size: str) -> List[Dict[str, Any]]:
+        await self.connect()
+        ib_contract = self._convert_contract(contract_id=contract_id, exchange=exchange)
+        
+        try:
+            await self.ib.qualifyContractsAsync(ib_contract)
+            bars = await self.ib.reqHistoricalDataAsync(
+                ib_contract,
+                endDateTime=end_time,
+                durationStr=self._calculate_duration(start_time, end_time),
+                barSizeSetting=bar_size,
+                whatToShow='TRADES',
+                useRTH=True
+            )
+            return util.df(bars)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to get historical data: {str(e)}")
+
     async def validate_contract(self, contract: Contract) -> bool:
         await self.connect()
         ib_contract = self._convert_contract(contract)
@@ -248,10 +267,8 @@ class IBKRBroker(BrokerInterface):
             return "5 Y"
         
     async def get_current_minute_bar_open(self, contract_id:int, exchange:str) -> float:
-        
         await self.connect()
         ib_contract = self._convert_contract(contract_id=contract_id, exchange=exchange)
-        print(ib_contract)
         
         try:
             await self.ib.qualifyContractsAsync(ib_contract)
@@ -263,8 +280,6 @@ class IBKRBroker(BrokerInterface):
                 whatToShow='TRADES',
                 useRTH=False,
                 formatDate=1)
-            # print(time.ctime())
-            print(util.df(bars))
             return util.df(bars)['open'].iloc[-1]
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to get current bar open: {str(e)}")

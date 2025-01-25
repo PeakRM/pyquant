@@ -19,8 +19,9 @@ class ContractType(str, Enum):
     ETF = "ETF"
 
 class Contract(BaseModel):
-    symbol: str
-    contract_type: ContractType
+    symbol: Optional[str] = None
+    contract_type: Optional[ContractType]=None
+    contract_id: Optional[int] = None
     exchange: Optional[str] = None
     currency: str = "USD"
     expiry: Optional[str] = None

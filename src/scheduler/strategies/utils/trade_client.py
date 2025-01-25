@@ -1,8 +1,8 @@
 import grpc
-import trade_pb2
-import trade_pb2_grpc
+import utils.trade_pb2 as trade_pb2
+import utils.trade_pb2_grpc as trade_pb2_grpc
 import time
-from definitions import Trade as TradeInstruction
+from utils.definitions import Trade as TradeInstruction
 
 
 def send_trade(trade: TradeInstruction) -> None:
