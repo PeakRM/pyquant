@@ -274,6 +274,17 @@
       <!-- Form -->
       <form id="addSetupForm" class="space-y-4">
         <div>
+          <label class="block font-medium mb-1" for="addStrategyName">Strategy Name</label>
+          <input 
+            class="block w-full border rounded p-1" 
+            type="text" 
+            id="addStrategyName" 
+            name="strategyName"
+            readonly=true
+          />
+        </div>
+        
+        <div>
           <label class="block font-medium mb-1" for="addSetupName">Setup Name</label>
           <input 
             class="block w-full border rounded p-1" 
@@ -802,6 +813,7 @@
       const form = document.getElementById('addSetupForm');
 
       // Populate form fields
+      document.getElementById('addStrategyName').value = strategyName || '';
       document.getElementById('addSetupName').value = strategyName +"-" || ''; //should not be editable
       // document.getElementById('addMarket').value = rowData.market || ''; // should not be editable
       // document.getElementById('addTimeframe').value = rowData.timeframe || '';
