@@ -25,7 +25,6 @@ def parse_strategy_config(config_data: Dict[str, Any],setup_name:str) -> Dict[st
 def load_and_parse_config(filepath: str, setup_name:str) -> Dict[str, Any]:
     try:
         data = load_strategy_config(filepath=filepath)
-        print(type(data),data)
         return parse_strategy_config(config_data=data, setup_name=setup_name)
     except Exception as e:
         print("Unable to Load / Parse Configuration: ",e)

@@ -83,7 +83,7 @@ class IBKRBroker(BrokerInterface):
         return True
 
     def _convert_contract(self, contract: Optional[Contract]=None, contract_id:Optional[int]=None,exchange:Optional[str]=None) -> ib_insync.Contract:
-        if contract is None:
+        if contract is None or contract.contract_type=="":
             try:
                 return ib_insync.Contract(conId=contract_id, exchange=exchange)
             except Exception:
@@ -180,7 +180,10 @@ class IBKRBroker(BrokerInterface):
 
     async def get_historical_data(self, contract: Contract, start_time: datetime, end_time: datetime, bar_size: str) -> List[Dict[str, Any]]:
         await self.connect()
-        ib_contract = self._convert_contract(contract=contract)
+        if contract.contract_type is None:
+            ib_contract = self._convert_contract(contract_id=contract.contract_id, exchange=contract.exchange)
+        else:
+            ib_contract = self._convert_contract(contract=contract)
         
         try:
             await self.ib.qualifyContractsAsync(ib_contract)
@@ -295,6 +298,15 @@ class IBKRBroker(BrokerInterface):
                 order = ib_insync.MarketOrder(direction, abs(open_trade.position))
                 await self.ib.qualifyContractsAsync(open_trade.contract)
                 self.ib.placeOrder(open_trade.contract, order)
+        except Exception as e:
+            print(e)
+            return 0
+        return 1
+
+    async def get_positions(self) -> int:
+        await self.connect()
+        try:
+            return self.ib.positions()
         except Exception as e:
             print(e)
             return 0

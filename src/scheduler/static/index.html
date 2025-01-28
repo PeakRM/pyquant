@@ -251,6 +251,104 @@
       </form>
     </div>
   </div>
+  <!-- Add Setup Modal Overlay -->
+  <div 
+    id="addSetupModalOverlay"
+    class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50"
+  >
+    <!-- Modal Content -->
+    <div 
+      id="addSetupModalContent"
+      class="bg-white p-6 rounded shadow max-w-sm w-full relative"
+    >
+      <!-- Close Button -->
+      <button 
+        id="closeAddSetupModal" 
+        class="absolute top-2 right-2 text-gray-700 font-bold text-xl"
+      >
+        &times;
+      </button>
+
+      <h2 class="text-xl font-semibold mb-4">Add New Setup Configuration</h2>
+
+      <!-- Form -->
+      <form id="addSetupForm" class="space-y-4">
+        <div>
+          <label class="block font-medium mb-1" for="addSetupName">Setup Name</label>
+          <input 
+            class="block w-full border rounded p-1" 
+            type="text" 
+            id="addSetupName" 
+            name="setupName"
+            required
+          />
+        </div>
+        
+        <div>
+          <label class="block font-medium mb-1" for="addMarket">Market</label>
+          <input 
+            class="block w-full border rounded p-1" 
+            type="text" 
+            id="addMarket" 
+            name="market"
+            required
+          />
+        </div>
+
+        <div>
+          <label class="block font-medium mb-1" for="addContractId">Contract ID</label>
+          <input 
+            class="block w-full border rounded p-1" 
+            type="text" 
+            id="addContractId" 
+            name="contract_id"
+            required
+          />
+        </div>
+        
+        <div>
+          <label class="block font-medium mb-1" for="addTimeframe">Timeframe</label>
+          <input 
+            class="block w-full border rounded p-1" 
+            type="text" 
+            id="addTimeframe" 
+            name="timeframe"
+            required
+          />
+        </div>
+        
+        <div>
+          <label class="block font-medium mb-1" for="addSchedule">Schedule</label>
+          <input 
+            class="block w-full border rounded p-1" 
+            type="text" 
+            id="addSchedule" 
+            name="schedule"
+            required
+          />
+        </div>
+
+        <div>
+          <label class="block font-medium mb-1" for="addOtherMarketData">Other Market Data</label>
+          <input 
+            class="block w-full border rounded p-1" 
+            type="text" 
+            id="addOtherMarketData" 
+            name="otherMarketData"
+          />
+        </div>
+
+        <!-- Submit Button -->
+        <button 
+          type="submit" 
+          class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+        >
+          Save Changes
+        </button>
+      </form>
+    </div>
+  </div>
+
   <!-- Container where we dynamically insert a grid per strategy -->
   <div id="grids-container" class="space-y-4"></div>
   <!-- Sidebar for Contract ID tool-->
@@ -339,13 +437,20 @@
         console.log(strategyName)
         // Create a card-like container for each grid
         const card = document.createElement('div');
-        card.className = 'grid-container bg-white rounded-lg shadow p-4 hover:shadow-lg transition';
+        card.className = 'grid-container bg-white rounded-lg shadow p-4 hover:shadow-lg transition relative';
 
         // Strategy Header
         const header = document.createElement('h2');
-        header.className = 'text-xl font-semibold mb-2';
+        header.className = 'text-xl font-semibold mb-4';
         header.textContent = `${strategyName} (${strategyObj.strategy_type})`;
         card.appendChild(header);
+        
+        // Add Setup Button Header
+        const addSetupButton = document.createElement('button');
+        addSetupButton.className = "absolute top-4 right-4 px-4 py-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors italic text-sm";
+        addSetupButton.textContent = "Add Setup";
+        addSetupButton.addEventListener('click', () => openAddSetupModal(strategyName));
+        card.appendChild(addSetupButton);
 
         // Add a div for the AG Grid
         const gridDiv = document.createElement('div');
@@ -660,6 +765,85 @@
         console.log(updatedData);
         try{
           const response = await fetch('/updateSetup' ,{
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: urlEncodedData
+          });
+          if (response.ok){
+            alert("Data submitted succesfully!");
+            // Close the modal
+            modal.classList.remove('flex');
+            modal.classList.add('hidden');
+          }else{
+            const errorText = await response.text();
+            console.log("Error response:", errorText);
+            alert("Submission failed: " + errorText);
+          };
+        } catch (error){
+          console.log(error);
+          alert("An error occurred.");
+        } finally{
+          fetchStrategies();
+        }
+        
+      });
+    });
+  </script>
+
+  <script>
+  // Function to open the add modal and populate it with data
+    async function openAddSetupModal(strategyName) {
+      // const res = await fetch('/strategies');
+      // const strategies = await res.json();
+      // const strategyName = rowData.setupName.split("-")[0]
+      // const currentSetup = strategies[strategyName]["setups"][rowData.setupName]
+
+      const modal = document.getElementById('addSetupModalOverlay');
+      const form = document.getElementById('addSetupForm');
+
+      // Populate form fields
+      document.getElementById('addSetupName').value = strategyName +"-" || ''; //should not be editable
+      // document.getElementById('addMarket').value = rowData.market || ''; // should not be editable
+      // document.getElementById('addTimeframe').value = rowData.timeframe || '';
+      // document.getElementById('addContractId').value = currentSetup.contract_id || '';
+      // document.getElementById('addSchedule').value = rowData.schedule || '';
+      // document.getElementById('addOtherMarketData').value = currentSetup.market_data.toString() || '';
+      
+      // Show the modal
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    // Event listeners
+    document.addEventListener('DOMContentLoaded', () => {
+      const modal = document.getElementById('addSetupModalOverlay');
+      const closeButton = document.getElementById('closeAddSetupModal');
+      const form = document.getElementById('addSetupForm');
+
+      // Close modal when clicking the close button
+      closeButton.addEventListener('click', () => {
+          modal.classList.remove('flex');
+          modal.classList.add('hidden');
+      });
+
+      // Close modal when clicking outside
+      modal.addEventListener('click', (e) => {
+          if (e.target === modal) {
+              modal.classList.remove('flex');
+              modal.classList.add('hidden');
+          }
+      });
+
+      // Handle form submission
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const updatedData = Object.fromEntries(formData);
+        const urlEncodedData = new URLSearchParams(formData);
+
+        console.log(updatedData);
+        try{
+          const response = await fetch('/addSetup' ,{
             method: 'POST',
             headers: {'Content-Type': 'application/x-www-form-urlencoded'},
             body: urlEncodedData

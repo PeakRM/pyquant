@@ -24,4 +24,4 @@ class Trade(BaseModel):
     exchange: str
     symbol: str
     side: Literal['BUY', 'SELL', 'HOLD']
-    quantity: Union[int, float]
+    quantity: int

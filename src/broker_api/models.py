@@ -46,9 +46,9 @@ class Order(BaseModel):
 
 class Fill(BaseModel):
     order_id: int
-    contract_id: float
+    contract_id: int
     time: datetime
-    quantity: float
+    quantity: int
     price: float
     side: OrderSide
 

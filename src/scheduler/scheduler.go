@@ -73,17 +73,13 @@ func main() {
 
 	// 2. Handle endpoints
 	http.HandleFunc("/strategies", handleListStrategies)
-	// e.g. POST /strategies/{strategyName}/{setupName}/toggle
-	http.HandleFunc("/strategies/", handleStrategyActions)
-	// handle positions
-	http.HandleFunc("/streamPositions", positionStreamHandler)
-
+	http.HandleFunc("/strategies/", handleStrategyActions)     // e.g. POST /strategies/{strategyName}/{setupName}/toggle
+	http.HandleFunc("/streamPositions", positionStreamHandler) // handle positions
 	http.HandleFunc("/uploadNewStrategy", newStrategyHandler)
-
 	http.HandleFunc("/updateSetup", updateSetup)
+	http.HandleFunc("/addSetup", addSetupHandler)
 
-	// 3. Serve frontend from ./static/
-	http.Handle("/", http.FileServer(http.Dir("./static")))
+	http.Handle("/", http.FileServer(http.Dir("./static"))) // 3. Serve frontend from ./static/
 
 	// Start server
 	log.Println("Server running on :8080")
@@ -351,6 +347,72 @@ func newStrategyHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
+func addSetupHandler(w http.ResponseWriter, r *http.Request) {
+	// 1) Parse the request body
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Failed to parse form data: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Get setupName from form data
+	setupName := r.FormValue("setupName")
+	if setupName == "" {
+		http.Error(w, "Setup name is required", http.StatusBadRequest)
+		return
+	}
+
+	// 2) Find the strategy & setup
+	var foundStrategy string
+	var foundSetup Setup
+	var strategyFound bool
+
+	// for stratName, strat := range strategies {
+	// 	if setup, ok := strat.Setups[setupName]; ok {
+	// 		foundStrategy = stratName
+	// 		foundSetup = setup
+	// 		strategyFound = true
+	// 		break
+	// 	}
+	// }
+
+	if !strategyFound {
+		http.Error(w, "Setup not found in any strategy", http.StatusNotFound)
+		return
+	}
+
+	// 3) Update setup fields from form data
+	// Preserve existing values that we don't want to modify
+	foundSetup.Market = r.FormValue("market")
+	foundSetup.ContractId, _ = strconv.Atoi(r.FormValue("contract_id"))
+	foundSetup.Timeframe = r.FormValue("timeframe")
+	foundSetup.Schedule = r.FormValue("schedule")
+	foundSetup.MarketData = strings.Split(r.FormValue("otherMarketData"), ",")
+
+	// 4) Update the local strategies map
+	strat := strategies[foundStrategy]
+	strat.Setups[setupName] = foundSetup
+	strategies[foundStrategy] = strat
+
+	// 5) Persist to JSON
+	shared_strategy_config := GetSharedFilePath("strategy-config.json")
+	if err := saveStrategies(shared_strategy_config); err != nil {
+		http.Error(w, "Failed to save config: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// 6) If the setup is currently active, restart it with new configuration
+	if foundSetup.Active {
+		stopScript(foundStrategy, setupName)
+
+		if err := startScript(strat.ScriptPath, foundStrategy, setupName); err != nil {
+			http.Error(w, "Failed to restart script: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
+	w.WriteHeader(http.StatusOK)
+	fmt.Println(strategyName, setupName, market, contractId, timeframe, schedule, additionalData)
+}
 func addStrategyToConfigFile(scriptPath, strategyName, typeVal, setupName, market, timeframe, schedule, additionalData string, contractId int) {
 	_, ok := strategies[strategyName]
 	if ok {

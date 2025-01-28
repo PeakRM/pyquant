@@ -75,3 +75,10 @@ async def close_all_positions(broker: str):
         raise NotImplementedError("Implement this fuction in TEST broker first.")
     broker_instance = BrokerFactory.get_broker(broker)
     return await broker_instance.close_all_positions()
+
+@app.get("/api/{broker}/positions")
+async def get_positions(broker: str):
+    if broker=="TEST": 
+        raise NotImplementedError("Implement this fuction in TEST broker first.")
+    broker_instance = BrokerFactory.get_broker(broker)
+    return await broker_instance.get_positions()
