@@ -355,18 +355,24 @@ func addSetupHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get setupName from form data
-	setupName := r.FormValue("setupName")
-	if setupName == "" {
+	newSetupName := r.FormValue("setupName")
+	if newSetupName == "" {
 		http.Error(w, "Setup name is required", http.StatusBadRequest)
 		return
 	}
 
 	// 2) Find the strategy & setup
-	var foundStrategy string
-	var foundSetup Setup
-	var strategyFound bool
+	//var foundStrategy string
+	//var foundSetup Setup
+	//mvar strategyFound bool
 
-	// for stratName, strat := range strategies {
+strategyName:= r.FormValue("strategyName")
+if setup, ok := strategies[strategyName].Setups[newSetupName]; ok {
+    http.Error(w, "Setup name already exists, enter a different name.", http.StatusBadRequest)
+				return
+}
+
+	//for stratName, strat := range strategies {
 	// 	if setup, ok := strat.Setups[setupName]; ok {
 	// 		foundStrategy = stratName
 	// 		foundSetup = setup
@@ -375,23 +381,26 @@ func addSetupHandler(w http.ResponseWriter, r *http.Request) {
 	// 	}
 	// }
 
-	if !strategyFound {
-		http.Error(w, "Setup not found in any strategy", http.StatusNotFound)
-		return
-	}
-
+	//if !strategyFound {
+		//http.Error(w, "Setup not found in any strategy", http.StatusNotFound)
+		//return
+	//}
+contractIdFmtd,_:=strconv.Atoi(r.FormValue("contract_id"))
 	// 3) Update setup fields from form data
 	// Preserve existing values that we don't want to modify
-	foundSetup.Market = r.FormValue("market")
-	foundSetup.ContractId, _ = strconv.Atoi(r.FormValue("contract_id"))
-	foundSetup.Timeframe = r.FormValue("timeframe")
-	foundSetup.Schedule = r.FormValue("schedule")
-	foundSetup.MarketData = strings.Split(r.FormValue("otherMarketData"), ",")
+	newSetup := Setup{
+		 Market: r.FormValue("market"),
+	  ContractId : contracIdFmtd,
+	  Timeframe: r.FormValue("timeframe"),
+			Schedule : r.FormValue("schedule"),
+		 MarketData: strings.Split(r.FormValue("otherMarketData"), ","),
+   Active: false
+	}
 
 	// 4) Update the local strategies map
-	strat := strategies[foundStrategy]
-	strat.Setups[setupName] = foundSetup
-	strategies[foundStrategy] = strat
+	//strat := strategies[foundStrategy]
+	//strat.Setups[setupName] = foundSetup
+	strategies[strategyName].Setups[setupName] = newSetup
 
 	// 5) Persist to JSON
 	shared_strategy_config := GetSharedFilePath("strategy-config.json")
@@ -400,19 +409,10 @@ func addSetupHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 6) If the setup is currently active, restart it with new configuration
-	if foundSetup.Active {
-		stopScript(foundStrategy, setupName)
-
-		if err := startScript(strat.ScriptPath, foundStrategy, setupName); err != nil {
-			http.Error(w, "Failed to restart script: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-	}
-
 	w.WriteHeader(http.StatusOK)
 	fmt.Println(strategyName, setupName, market, contractId, timeframe, schedule, additionalData)
 }
+
 func addStrategyToConfigFile(scriptPath, strategyName, typeVal, setupName, market, timeframe, schedule, additionalData string, contractId int) {
 	_, ok := strategies[strategyName]
 	if ok {
