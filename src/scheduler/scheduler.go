@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -70,8 +71,8 @@ func main() {
 	}
 	// 1a. Start process that checks for unexcpected Strategy Crashes
 	// strategyTerminationCheck()
-    // Start monitoring every 30 seconds
- monitorScripts(30 * time.Second)
+	// Start monitoring every 30 seconds
+	monitorScripts(30 * time.Second)
 	// 2. Handle endpoints
 	http.HandleFunc("/strategies", handleListStrategies)
 	http.HandleFunc("/strategies/", handleStrategyActions)     // e.g. POST /strategies/{strategyName}/{setupName}/toggle
@@ -202,44 +203,43 @@ func positionStreamHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func monitorScripts(checkInterval time.Duration) {
-    go func() {
-        for {
-            time.Sleep(checkInterval)
-            
-            runningMu.Lock()
-            for key, cmd := range runningProcs {
-                if cmd == nil || cmd.Process == nil {
-                    continue
-                }
+	go func() {
+		for {
+			time.Sleep(checkInterval)
 
-                // Check if process is still running
-                if err := cmd.Process.Signal(syscall.Signal(0)); err != nil {
-                    log.Printf("Script %s has stopped unexpectedly, attempting restart", key)
-                    
-                    // Get strategy and setup names
-                    parts := strings.Split(key, "|")
-                    if len(parts) != 2 {
-                        continue
-                    }
-                    
-                    // Remove from running processes
-                    delete(runningProcs, key)
-                    runningMu.Unlock()
+			runningMu.Lock()
+			for key, cmd := range runningProcs {
+				if cmd == nil || cmd.Process == nil {
+					continue
+				}
 
-                    // Attempt restart
-                    scriptPath := getScriptPath(parts[0]) // Implement based on your config
-                    if err := startScript(scriptPath, parts[0], parts[1]); err != nil {
-                        log.Printf("Failed to restart script %s: %v", key, err)
-                    }
+				// Check if process is still running
+				if err := cmd.Process.Signal(syscall.Signal(0)); err != nil {
+					log.Printf("Script %s has stopped unexpectedly", key)
 
-                    runningMu.Lock()
-                }
-            }
-            runningMu.Unlock()
-        }
-    }()
+					// Get strategy and setup names
+					parts := strings.Split(key, "|")
+					if len(parts) != 2 {
+						continue
+					}
+
+					// Remove from running processes
+					delete(runningProcs, key)
+					runningMu.Unlock()
+
+					// Attempt restart
+					// scriptPath := getScriptPath(parts[0]) // Implement based on your config
+					// if err := startScript(scriptPath, parts[0], parts[1]); err != nil {
+					// 	log.Printf("Failed to restart script %s: %v", key, err)
+					// }
+
+					runningMu.Lock()
+				}
+			}
+			runningMu.Unlock()
+		}
+	}()
 }
-
 
 // handleStrategyActions handles requests like:
 // POST /strategies/{strategyName}/{setupName}/toggle
@@ -394,11 +394,11 @@ func addSetupHandler(w http.ResponseWriter, r *http.Request) {
 	//var foundSetup Setup
 	//mvar strategyFound bool
 
-strategyName:= r.FormValue("strategyName")
-if setup, ok := strategies[strategyName].Setups[newSetupName]; ok {
-    http.Error(w, "Setup name already exists, enter a different name.", http.StatusBadRequest)
-				return
-}
+	strategyName := r.FormValue("strategyName")
+	if _, ok := strategies[strategyName].Setups[newSetupName]; ok {
+		http.Error(w, "Setup name already exists, enter a different name.", http.StatusBadRequest)
+		return
+	}
 
 	//for stratName, strat := range strategies {
 	// 	if setup, ok := strat.Setups[setupName]; ok {
@@ -410,25 +410,25 @@ if setup, ok := strategies[strategyName].Setups[newSetupName]; ok {
 	// }
 
 	//if !strategyFound {
-		//http.Error(w, "Setup not found in any strategy", http.StatusNotFound)
-		//return
+	//http.Error(w, "Setup not found in any strategy", http.StatusNotFound)
+	//return
 	//}
-contractIdFmtd,_:=strconv.Atoi(r.FormValue("contract_id"))
+	contractIdFmtd, _ := strconv.Atoi(r.FormValue("contract_id"))
 	// 3) Update setup fields from form data
 	// Preserve existing values that we don't want to modify
 	newSetup := Setup{
-		 Market: r.FormValue("market"),
-	  ContractId : contracIdFmtd,
-	  Timeframe: r.FormValue("timeframe"),
-			Schedule : r.FormValue("schedule"),
-		 MarketData: strings.Split(r.FormValue("otherMarketData"), ","),
-   Active: false
+		Market:     r.FormValue("market"),
+		ContractId: contractIdFmtd,
+		Timeframe:  r.FormValue("timeframe"),
+		Schedule:   r.FormValue("schedule"),
+		MarketData: strings.Split(r.FormValue("otherMarketData"), ","),
+		Active:     false,
 	}
 
 	// 4) Update the local strategies map
 	//strat := strategies[foundStrategy]
 	//strat.Setups[setupName] = foundSetup
-	strategies[strategyName].Setups[setupName] = newSetup
+	strategies[strategyName].Setups[newSetupName] = newSetup
 
 	// 5) Persist to JSON
 	shared_strategy_config := GetSharedFilePath("strategy-config.json")
@@ -438,7 +438,7 @@ contractIdFmtd,_:=strconv.Atoi(r.FormValue("contract_id"))
 	}
 
 	w.WriteHeader(http.StatusOK)
-	fmt.Println(strategyName, setupName, market, contractId, timeframe, schedule, additionalData)
+	fmt.Println(strategyName, newSetup)
 }
 
 func addStrategyToConfigFile(scriptPath, strategyName, typeVal, setupName, market, timeframe, schedule, additionalData string, contractId int) {
@@ -596,8 +596,6 @@ func GetSharedVenvPath() (string, error) {
 	return "", fmt.Errorf("no python interpreter path found")
 
 }
-
-
 
 // startScript spawns a python process for the given setup
 func startScript(scriptPath, strategyName, setupName string) error {
