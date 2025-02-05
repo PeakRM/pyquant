@@ -139,7 +139,7 @@ class IBKRBroker(BrokerInterface):
     async def get_fills(self) -> List[Fill]:
         await self.connect()
         fills = []
-        # print(self.ib.fills()[0])
+        # print(self.ib.trades())
         try:
             for fill in self.ib.fills():
                 fills.append(Fill(
@@ -155,6 +155,32 @@ class IBKRBroker(BrokerInterface):
             raise HTTPException(status_code=500, detail=f"Failed to get fills: {str(e)}")
             
         return fills
+    
+    async def get_trades(self) -> List[Trade]:
+        await self.connect()
+        trades=[]
+        try:
+            ib_trades = self.ib.trades()
+            for trade in ib_trades:
+                quantity=0
+                price=0.
+                
+                if trade.orderStatus.status != "Filled":
+                    quantity=trade.execution.shares
+                    price=trade.execution.price
+
+                trades.append(Trade(
+                    order_id=trade.order.orderId,
+                    contract_id=trade.contract.conId,
+                    time=trade.time,
+                    quantity=quantity,
+                    price=price,
+                    side=OrderSide.BUY if trade.order.action == "BUY" else OrderSide.SELL,
+                    order_status=trade.orderStatus.status))
+            return trades
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to get : {str(e)}")
+            
 
     async def place_order(self, order: Order) -> str:
         await self.connect()

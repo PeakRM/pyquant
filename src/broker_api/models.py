@@ -18,6 +18,13 @@ class ContractType(str, Enum):
     FUTURE = "FUT"
     ETF = "ETF"
 
+class OrderStatus(str, Enum):
+    Filled = "Filled"
+    Pending = "Pending"
+    Cancelled = "Cancelled"
+    Submitted = "Submitted"
+
+
 class Contract(BaseModel):
     symbol: Optional[str] = None
     contract_type: Optional[ContractType]=None
@@ -26,7 +33,7 @@ class Contract(BaseModel):
     currency: str = "USD"
     expiry: Optional[str] = None
 
-class Trade(BaseModel):
+class TradeInstruction(BaseModel):
     strategy_name: str
     contract_id: int
     exchange: str
@@ -35,7 +42,7 @@ class Trade(BaseModel):
     quantity: Union[int, float]
 
 class Order(BaseModel):
-    trade: Trade
+    trade: TradeInstruction
     price: float
     timestamp: str
     # contract: Contract
@@ -58,3 +65,12 @@ class Quote(BaseModel):
     ask: Optional[float]
     last: Optional[float]
     timestamp: datetime
+
+class Trade(BaseModel):
+    order_id: int
+    contract_id: int
+    time: datetime
+    quantity: int
+    price: float
+    side: OrderSide
+    order_status: OrderStatus

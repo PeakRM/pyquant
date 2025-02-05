@@ -80,7 +80,7 @@ func (s *server) SendTrade(ctx context.Context, trade *pb.Trade) (*pb.TradeRespo
 }
 
 // Function to send a GET request to localhost:8081/api/[contract_id] and retrieve the last price
-func fetchPriceQuote(contractID int32, exchange string) (float64, error) {
+func fetchPriceQuote(contractID int32, exchange string) (Quote, error) {
 	// url := fmt.Sprintf("http://127.0.0.1:8000/quoteByConId?conId=%d&exchange=%s", contractID, exchange) //local dev test_api
 	// url := fmt.Sprintf("http://broker_api:8000/quoteByConId?conId=%d&exchange=%s", contractID, exchange) // docker test test_api
 	url := fmt.Sprintf("http://127.0.0.1:8000/api/IB/quote/%s/%d", exchange, contractID) //local dev broker_api
@@ -89,7 +89,7 @@ func fetchPriceQuote(contractID int32, exchange string) (float64, error) {
 	resp, err := http.Get(url)
 	if err != nil {
 		fmt.Println("Error sending GET request:", err)
-		return -1.0, err // Default price if there is an error
+		return Quote{}, err // Empty quote if there is an error
 	}
 	defer resp.Body.Close()
 
@@ -101,14 +101,14 @@ func fetchPriceQuote(contractID int32, exchange string) (float64, error) {
 	err = json.NewDecoder(resp.Body).Decode(&response)
 	if err != nil {
 		fmt.Println("Error decoding quote:", err)
-		return -1.0, err // Default price if there is an error
+		return Quote{}, err // Empty quote if there is an error
 	}
 
-	fmt.Printf("GET request to %s returned price: %f\n", url, response.Last)
+	fmt.Printf("Bid: %f\tAsk: %f\tLast:%f\n", response.Bid, response.Ask, response.Last)
 	if response.Last == 0.0 {
-		return -1.0, &MyError{}
+		return Quote{}, &MyError{}
 	}
-	return response.Last, nil
+	return response, nil
 }
 
 // Send order to BrokerAPI
@@ -164,7 +164,7 @@ func transmitOrder(order Order, testTrade bool) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("error converting to int: %v", err)
 	}
-	fmt.Println("Order Sent")
+	fmt.Println("Order Sent\t-->\tID: ", orderID)
 
 	return orderID, nil
 }
@@ -194,7 +194,7 @@ func processNewTrades(workerId int) {
 		}
 
 		// Fetch price quote
-		price, err := fetchPriceQuote(trade.ContractId, trade.Exchange)
+		quote, err := fetchPriceQuote(trade.ContractId, trade.Exchange)
 		if err != nil {
 			log.Printf("%sFailed to fetch price for symbol %s: %v", workerInfo, trade.Symbol, err)
 			continue
@@ -204,6 +204,11 @@ func processNewTrades(workerId int) {
 			log.Printf("%sFailed to convert Quantity string to int for symbol %s: %v", workerInfo, trade.Quantity, err)
 			continue
 		}
+		lmtPrice := quote.Bid
+		if trade.Side == "SELL" {
+			lmtPrice = quote.Ask
+		}
+
 		// Create order
 		order := Order{
 			Trade: Trade{
@@ -214,7 +219,7 @@ func processNewTrades(workerId int) {
 				Side:         trade.Side,
 				Quantity:     quantity,
 			},
-			PriceQuote: price,
+			PriceQuote: lmtPrice,
 			Timestamp:  time.Now(),
 		}
 

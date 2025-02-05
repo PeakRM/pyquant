@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -53,6 +54,9 @@ type Position struct {
 var strategies map[string]Strategy
 var positions map[string]Position
 
+// Used to signal frontend to refersh strategy config data to mirror backend.
+var refreshStrategyConfigChan = make(chan string, 50) // Increase if needed
+
 // Keep track of running processes by "StrategyName|SetupName"
 var (
 	runningProcs = make(map[string]*exec.Cmd)
@@ -69,19 +73,23 @@ func main() {
 	if err := loadStrategies(shared_strategy_config); err != nil {
 		log.Fatalf("Failed to load strategies: %v", err)
 	}
+	setupShutdown("strategy-config.json")
+
 	// 1a. Start process that checks for unexcpected Strategy Crashes
-	// strategyTerminationCheck()
 	// Start monitoring every 30 seconds
 	monitorScripts(30 * time.Second)
+
 	// 2. Handle endpoints
 	http.HandleFunc("/strategies", handleListStrategies)
-	http.HandleFunc("/strategies/", handleStrategyActions)     // e.g. POST /strategies/{strategyName}/{setupName}/toggle
-	http.HandleFunc("/streamPositions", positionStreamHandler) // handle positions
+	http.HandleFunc("/strategies/", handleStrategyActions)           // e.g. POST /strategies/{strategyName}/{setupName}/toggle
+	http.HandleFunc("/streamPositions", positionStreamHandler)       // handle positions
+	http.HandleFunc("/refreshStrategyConfig", refreshStrategyConfig) // tells front end refresh strategies due to backend changes
 	http.HandleFunc("/uploadNewStrategy", newStrategyHandler)
 	http.HandleFunc("/updateSetup", updateSetup)
 	http.HandleFunc("/addSetup", addSetupHandler)
 
-	http.Handle("/", http.FileServer(http.Dir("./static"))) // 3. Serve frontend from ./static/
+	// 3. Serve frontend from ./static/
+	http.Handle("/", http.FileServer(http.Dir("./static")))
 
 	// Start server
 	log.Println("Server running on :8080")
@@ -89,24 +97,10 @@ func main() {
 }
 
 // -----------------------------------------------------------------
-// Utils
+// Loading & Saving System State
 // -----------------------------------------------------------------
 
-// GetSharedFilePath returns the appropriate path based on environment
-func GetSharedFilePath(filename string) string {
-	// Check if running in container by looking for /.dockerenv
-	if _, err := os.Stat("/.dockerenv"); err == nil {
-		return filepath.Join("/shared", filename)
-	}
-
-	// Development environment
-	return filepath.Join("..", "..", "shared_files", filename)
-}
-
-// -----------------------------------------------------------------
-// JSON Loading & Saving
-// -----------------------------------------------------------------
-
+// load to strategy config state
 func loadStrategyFile(filePath string) (map[string]Strategy, error) {
 	temp := make(map[string]Strategy)
 	data, err := ioutil.ReadFile(filePath)
@@ -120,6 +114,7 @@ func loadStrategyFile(filePath string) (map[string]Strategy, error) {
 
 }
 
+// load strategy config from file (JSON)
 func loadStrategies(filePath string) error {
 	temp, err := loadStrategyFile(filePath)
 	if err != nil {
@@ -130,15 +125,7 @@ func loadStrategies(filePath string) error {
 	return nil
 }
 
-// Save updated 'strategies' map to the JSON file
-func saveStrategies(filePath string) error {
-	data, err := json.MarshalIndent(strategies, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(filePath, data, 0644)
-}
-
+// load positions from file (JSON)
 func loadPositions(filePath string) error {
 	data, err := ioutil.ReadFile(filePath)
 	if err != nil {
@@ -153,8 +140,74 @@ func loadPositions(filePath string) error {
 	return nil
 }
 
+// Save updated 'strategies' map to the JSON file
+func saveStrategies(filePath string) error {
+	data, err := json.MarshalIndent(strategies, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(filePath, data, 0644)
+}
+
+func addStrategyToConfigFile(scriptPath, strategyName, typeVal, setupName, market, timeframe, schedule, additionalData string, contractId int) {
+	_, ok := strategies[strategyName]
+	if ok {
+		log.Print("Strategy already exists, select differnt name.")
+		return
+	}
+	setup := Setup{
+		Market:     market,
+		ContractId: contractId,
+		Active:     false,
+		Timeframe:  timeframe,
+		Schedule:   schedule,
+		MarketData: strings.Split(additionalData, ","),
+	}
+	setups := map[string]Setup{setupName: setup}
+	strategies[strategyName] = Strategy{
+		ScriptPath:   scriptPath,
+		StrategyType: typeVal,
+		Setups:       setups,
+	}
+	shared_strategy_config := GetSharedFilePath("strategy-config.json")
+	// 4) Persist to JSON
+	if err := saveStrategies(shared_strategy_config); err != nil {
+		log.Println("Failed to save config: ", err.Error())
+		return
+	}
+}
+
+// Load system state
+// func loadState(filename string) (map[string]interface{}, error) {
+// 	shared_strategy_config := GetSharedFilePath(filename)
+// 	if err := loadStrategies(shared_strategy_config); err != nil {
+// 		log.Fatalf("Failed to load strategies: %v", err)
+// 	}
+// }
+
+func setupShutdown(strategyFilename string) {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-c
+		err := saveStrategies(strategyFilename)
+		if err != nil {
+			fmt.Println("Error saving Strategy config to file before shutdown..")
+		}
+
+		// if data, err := json.Marshal(strategies); err == nil {
+		// 	os.WriteFile(strategyFilename, data, 0644)
+		// }
+
+		// if data, err := json.Marshal(positions); err == nil {
+		// 	os.WriteFile(strategyFilename, data, 0644)
+		// }
+		os.Exit(0)
+	}()
+}
+
 // -----------------------------------------------------------------
-// Handlers
+// Route Handlers
 // -----------------------------------------------------------------
 
 // handleListStrategies GET /strategies -> returns entire strategies map as JSON
@@ -209,9 +262,11 @@ func monitorScripts(checkInterval time.Duration) {
 
 			runningMu.Lock()
 			for key, cmd := range runningProcs {
-				if cmd == nil || cmd.Process == nil {
+				if cmd == nil || cmd.ProcessState == nil {
+					fmt.Println(cmd, cmd.Process, cmd.Process.Pid)
 					continue
 				}
+				fmt.Printf("process info:\n CMD: %s\n Process:%+v\n State:%s", cmd, cmd.Process, cmd.ProcessState)
 
 				// Check if process is still running
 				if err := cmd.Process.Signal(syscall.Signal(0)); err != nil {
@@ -222,23 +277,58 @@ func monitorScripts(checkInterval time.Duration) {
 					if len(parts) != 2 {
 						continue
 					}
+					strategyName := parts[0]
+					setupName := parts[1]
+					strat, ok := strategies[strategyName]
+					if !ok {
+						return
+					}
+					setup, ok := strat.Setups[setupName]
+					if !ok {
+						return
+					}
 
+					setup.Active = false
+
+					// 3) Update the local strategies map
+					strat.Setups[setupName] = setup
+					strategies[strategyName] = strat
+					shared_strategy_config := GetSharedFilePath("strategy-config.json")
+					// 4) Persist to JSON
+					if err := saveStrategies(shared_strategy_config); err != nil {
+						// http.Error(w, "Failed to save config: "+err.Error(), http.StatusInternalServerError)
+						return
+					}
+					refreshStrategyConfigChan <- key
 					// Remove from running processes
 					delete(runningProcs, key)
-					runningMu.Unlock()
-
-					// Attempt restart
-					// scriptPath := getScriptPath(parts[0]) // Implement based on your config
-					// if err := startScript(scriptPath, parts[0], parts[1]); err != nil {
-					// 	log.Printf("Failed to restart script %s: %v", key, err)
-					// }
-
-					runningMu.Lock()
 				}
 			}
 			runningMu.Unlock()
 		}
 	}()
+}
+
+func refreshStrategyConfig(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "SSE not supported", http.StatusInternalServerError)
+		return
+	}
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case msg := <-refreshStrategyConfigChan:
+			fmt.Fprintf(w, "data: %s\n\n", msg)
+			flusher.Flush()
+		}
+	}
 }
 
 // handleStrategyActions handles requests like:
@@ -278,18 +368,6 @@ func handleStrategyActions(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "Unknown action", http.StatusNotFound)
 	}
-}
-
-// Helper function
-func exists(path string) (bool, error) {
-	_, err := os.Stat(path)
-	if err == nil {
-		return true, nil
-	}
-	if errors.Is(err, fs.ErrNotExist) {
-		return false, nil
-	}
-	return false, err
 }
 
 func newStrategyHandler(w http.ResponseWriter, r *http.Request) {
@@ -441,34 +519,6 @@ func addSetupHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println(strategyName, newSetup)
 }
 
-func addStrategyToConfigFile(scriptPath, strategyName, typeVal, setupName, market, timeframe, schedule, additionalData string, contractId int) {
-	_, ok := strategies[strategyName]
-	if ok {
-		log.Print("Strategy already exists, select differnt name.")
-		return
-	}
-	setup := Setup{
-		Market:     market,
-		ContractId: contractId,
-		Active:     false,
-		Timeframe:  timeframe,
-		Schedule:   schedule,
-		MarketData: strings.Split(additionalData, ","),
-	}
-	setups := map[string]Setup{setupName: setup}
-	strategies[strategyName] = Strategy{
-		ScriptPath:   scriptPath,
-		StrategyType: typeVal,
-		Setups:       setups,
-	}
-	shared_strategy_config := GetSharedFilePath("strategy-config.json")
-	// 4) Persist to JSON
-	if err := saveStrategies(shared_strategy_config); err != nil {
-		log.Println("Failed to save config: ", err.Error())
-		return
-	}
-}
-
 // -----------------------------------------------------------------
 // Strategy Toggle/Update Logic
 // -----------------------------------------------------------------
@@ -586,17 +636,6 @@ func updateSetup(w http.ResponseWriter, r *http.Request) {
 // Start / Stop Script
 // -----------------------------------------------------------------
 
-func GetSharedVenvPath() (string, error) {
-	if pathExists("/usr/local/bin/python") {
-		return "/usr/local/bin/python", nil
-	}
-	if pathExists("C:/Users/Jon/Projects/pyquant/.venv") {
-		return "C:/Users/Jon/Projects/pyquant/.venv/Scripts/python.exe", nil
-	}
-	return "", fmt.Errorf("no python interpreter path found")
-
-}
-
 // startScript spawns a python process for the given setup
 func startScript(scriptPath, strategyName, setupName string) error {
 	runningMu.Lock()
@@ -654,12 +693,6 @@ func stopScript(strategyName, setupName string) {
 	delete(runningProcs, key)
 }
 
-// pathExists checks whether a given file path exists.
-func pathExists(path string) bool {
-	_, err := os.Stat(path)
-	return !os.IsNotExist(err)
-}
-
 // checkPythonAndScript verifies the Python executable and script are present.
 func checkPythonAndScript(venvPythonPath, scriptPath string) error {
 	if !pathExists(venvPythonPath) {
@@ -672,7 +705,7 @@ func checkPythonAndScript(venvPythonPath, scriptPath string) error {
 }
 
 // -----------------------------------------------------------------
-// Utility for splitting paths
+// Utility Funtions
 // -----------------------------------------------------------------
 
 func splitPath(p string) []string {
@@ -700,4 +733,44 @@ func splitOnSlash(p string) []string {
 		res = append(res, p[start:])
 	}
 	return res
+}
+
+// Helper function
+func exists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+	return false, err
+}
+
+// pathExists checks whether a given file path exists.
+func pathExists(path string) bool {
+	_, err := os.Stat(path)
+	return !os.IsNotExist(err)
+}
+
+func GetSharedVenvPath() (string, error) {
+	if pathExists("/usr/local/bin/python") {
+		return "/usr/local/bin/python", nil
+	}
+	if pathExists("C:/Users/Jon/Projects/pyquant/.venv") {
+		return "C:/Users/Jon/Projects/pyquant/.venv/Scripts/python.exe", nil
+	}
+	return "", fmt.Errorf("no python interpreter path found")
+
+}
+
+// GetSharedFilePath returns the appropriate path based on environment
+func GetSharedFilePath(filename string) string {
+	// Check if running in container by looking for /.dockerenv
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		return filepath.Join("/shared", filename)
+	}
+
+	// Development environment
+	return filepath.Join("..", "..", "shared_files", filename)
 }

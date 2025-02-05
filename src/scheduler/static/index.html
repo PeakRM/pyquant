@@ -363,7 +363,7 @@
   <!-- Container where we dynamically insert a grid per strategy -->
   <div id="grids-container" class="space-y-4"></div>
   <!-- Sidebar for Contract ID tool-->
-  <div id="sidebar" class="fixed top-0 right-0 h-full w-80 bg-gray-100 transform translate-x-full transition-transform duration-300 shadow-lg">
+  <div id="sidebar" class="fixed top-0 right-0 h-full w-80 bg-gray-100 transform translate-x-full transition-transform duration-300 shadow-lg z-50">
     <button onclick="toggleSidebar()" class="absolute -left-10 top-4 bg-gray-200 p-2 rounded-l">
       ≡
     </button>
@@ -421,20 +421,6 @@
       renderGrids(strategies);//, positions);
       
     }
-    async function fetchPositions(){
-        await fetch("/positions")
-        .then((res) => {
-          if (!res.ok){
-            throw new Error (`HTTP error! Status: ${res.status}`);
-          }
-          return res.json();
-        })
-        .then((data)=> {
-          console.log(data);
-          return data;
-        })
-        .catch((error) => console.error("unable to fetchg data:", error));
-    }
 
     // 2. Render one AG Grid per strategy
     const gridApiMap = {}; // key = strategyName, value = the gridApi
@@ -491,24 +477,24 @@
         console.log(rowData)
         // Define column definitions for AG Grid
         const columnDefs = [
-          { headerName: 'Setup Name', field: 'setupName', flex: 1 },
+          { headerName: 'Name', field: 'setupName', flex: 1 },
           { headerName: 'Market', field: 'market', flex: 1, cellStyle: {"textAlign":"center"}},
           { headerName: 'Active', field: 'active', flex: 1, cellStyle: {"textAlign":"center"},
             cellRenderer:(params)=>{
               const cont = document.createElement('div');
-              const activeStrategy = '<i class="fa-solid fa-circle-check" style="color: #63E6BE;"></i>';
-              const inactiveStrategy = '<i class="fa-solid fa-circle-xmark" style="color: #e60a20;"></i>';
+              const activeStrategy = '<i class="fa-solid fa-circle-check fa-lg" style="color: #63E6BE;"></i>';
+              const inactiveStrategy = '<i class="fa-solid fa-circle-xmark fa-lg" style="color: #e60a20;"></i>';
               cont.innerHTML = params.data.active == true ? activeStrategy: inactiveStrategy ; 
               return cont
             }},
           { headerName: 'Timeframe', field: 'timeframe', flex: 1, cellStyle: {"textAlign":"center"}},
           { headerName: 'Schedule', field: 'schedule', flex: 1 , cellStyle: {"textAlign":"center"}},
-          { headerName: 'Open Position', field: 'openPosition', flex: 1 , cellStyle: {"textAlign":"center"}},
-          { headerName: 'Edit Setup', field: 'editSetup', flex: 1,
+          { headerName: 'Position', field: 'openPosition', flex: 1 , cellStyle: {"textAlign":"center"}},
+          { headerName: 'Configure', field: 'editSetup', flex: 1,
             cellStyle: {"textAlign":"center"},
             cellRenderer: params => {
                 const button = document.createElement('edit-button');
-                button.innerHTML = '<i class="fa-solid fa-gears"></i>'; // Using Font Awesome for the gear icon
+                button.innerHTML = '<i class="fa-solid fa-gears fa-lg"></i>'; // Using Font Awesome for the gear icon
                 button.className = 'btn-action';
                 button.addEventListener('click', () => openEditSetupModal(params.data));
                 return button;
@@ -516,12 +502,15 @@
           },
           {
             headerName: 'Start/Stop', field: 'actions', flex: 1,
+            cellStyle: {"textAlign":"center"},
             // Use a custom cell renderer for the toggle button
             cellRenderer: (params) => {
               const container = document.createElement('div');
               const btn = document.createElement('button');
-              btn.textContent = params.data.active == true ? "Pause" : "Resume";//"Resume/Pause";
-              btn.className = 'px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700';
+              // btn.textContent = params.data.active == true ? "Pause" : "Resume";//"Resume/Pause";
+              btn.innerHTML = params.data.active == true ? '<i class="fa-solid fa-pause fa-lg" style="color: red"></i>': '<i class="fa-solid fa-play fa-lg" style="color: green"></i>';//"Resume/Pause";
+              // btn.className = 'px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700';
+              btn.className = 'btn-action';
 
               // When clicked, call the toggle function
               btn.addEventListener('click', () => {
@@ -581,6 +570,19 @@
       // Re-fetch to update the UI with new 'active' state
       fetchStrategies();
     }
+
+    const refreshStrategyConfig = new EventSource('/refreshStrategyConfig');
+
+    // Handle incoming SSE messages
+    refreshStrategyConfig.onmessage = (event) => {
+      consol.log("Unexpected Termination: ", event.data)
+      fetchStrategies();
+    }
+    refreshStrategyConfig.onerror = (error) => {
+      console.error('SSE error:', error);
+      refreshStrategyConfig.close();
+    };
+
   </script>
   
   <script>

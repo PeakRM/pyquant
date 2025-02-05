@@ -16,8 +16,6 @@ src/scheduler/strategies/__pycache__/trade_pb2.cpython-312.pyc
 src/scheduler/strategies/__pycache__/definitions.cpython-312.pyc
 src/scheduler/strategies/VolatilityBreakout.py
 src/scheduler/scheduler.go
-src/scheduler/volatility_breakout_20250127.log
-src/scheduler/strategies/volatility_breakout_20250125.log
-src/scheduler/strategies/volatility_breakout_20250126.log
-src/scheduler/strategies/volatility_breakout_20250127.log
-src/scheduler/volatility_breakout_20250128.log
+src/scheduler/strategies/logs
+/other
+.ipynb_checkpoints/Hourly E-mini analysis (23-25)-checkpoint.ipynb
