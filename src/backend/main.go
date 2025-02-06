@@ -32,7 +32,7 @@ type OrderResponse struct {
 	OrderId int
 }
 
-type Trade struct {
+type TradeInstruction struct {
 	StrategyName string `json:"strategy_name"`
 	ContractId   int    `json:"contract_id"`
 	Exchange     string `json:"exchange"`
@@ -42,18 +42,19 @@ type Trade struct {
 }
 
 type Order struct {
-	Trade      Trade     `json:"trade"`
+	TradeInstruction      TradeInstruction     `json:"trade"`
 	PriceQuote float64   `json:"price"`
 	Timestamp  time.Time `json:"timestamp"`
 }
 
-type Fill struct {
+type Trade struct {
 	Id         int       `json:"order_id"`
 	Price      float64   `json:"price"`
 	Quantity   float64   `json:"quantity"`
 	Time       time.Time `json:"time"`
 	ContractId int       `json:"contract_id"`
 	Side       string    `json:"side"`
+	Status	   string    `json:"order_status"`
 }
 
 type Quote struct {
@@ -211,7 +212,7 @@ func processNewTrades(workerId int) {
 
 		// Create order
 		order := Order{
-			Trade: Trade{
+			TradeInstruction: TradeInstruction{
 				StrategyName: trade.StrategyName,
 				ContractId:   int(trade.ContractId),
 				Exchange:     trade.Exchange,
@@ -253,7 +254,7 @@ func monitorFill(orderResp OrderResponse) {
 	for !isFilled {
 
 		// url := fmt.Sprintf("http://127.0.0.1:8000/fills?order_id=%d", orderResp.OrderId)
-		url := "http://127.0.0.1:8000/api/IB/fills"
+		url := "http://127.0.0.1:8000/api/IB/trades"
 		// url := fmt.Sprintf("http://broker_api:8000/fills?Id=%d", orderResp.OrderId)
 		resp, err := http.Get(url)
 		if err != nil {
@@ -263,48 +264,86 @@ func monitorFill(orderResp OrderResponse) {
 		defer resp.Body.Close()
 
 		// Parse the response body to extract the price
-		var response []Fill
+		var response []Trade
 		err = json.NewDecoder(resp.Body).Decode(&response)
 		if err != nil {
 			fmt.Println("Error decoding fills:", err)
-			// return -1.0, err // Default price if there is an error
 		}
 
-		for _, fill := range response {
-			if fill.Id != orderResp.OrderId {
+		for _, trade := range response {
+			if trade.Id != orderResp.OrderId {
 				continue
 			}
-			// if fill.Status != "filled" {
-			// 	continue
-			// }
+			if trade.Status != "Filled" || trade.Status != "Cancelled" {
+				continue
+			}
+
 			direction := 1.0
-			if orderResp.Order.Trade.Side == "SELL" {
+			if orderResp.Order.TradeInstruction.Side == "SELL" {
 				direction = -1.0
 			}
 
-			updatePositionsToFilled(orderResp, fill.Price, int(direction*math.Abs(float64(fill.Quantity))))
-			fmt.Println("Order Filled: ", orderResp.OrderId)
-			isFilled = true
+			updatePositionsFromResponse(orderResp, trade.Status,  trade.Price,
+							 int(direction*math.Abs(float64(trade.Quantity)) ))
+			fmt.Printf("Order %s: %d", trade.Status, orderResp.OrderId)
+			isFiilled = true
 		}
 		time.Sleep(time.Second)
 	}
 }
 
+func updatePositionsFromResponse(orderResp OrderResponse, status string, costBasis float64, quantity int) {
+	fmt.Printf("Updating Positions for %s Order\n", status)
+	positionId := fmt.Sprintf("%s-%s",
+							 orderResp.Order.TradeInstruction.StrategyName,
+							 orderResp.Order.TradeInstruction.Symbol)
+	positionMap, ok := positions.Load(positionId)
+	if ok {
+		pos, ok := positionMap.(definitions.Position)
+		if ok {
+			fmt.Print("Position Map", pos)
+			quantity += pos.Quantity
+		}
+
+	}
+	if quantity == 0.0 || status == "Cancelled" {
+		status = "closed"
+	}
+
+	positions.Store(positionId, definitions.Position{
+		Symbol:     orderResp.Order.TradeInstruction.Symbol,
+		Exchange:   orderResp.Order.TradeInstruction.Exchange,
+		Quantity:   quantity, // * float64(posAdj),
+		CostBasis:  costBasis,
+		Datetime:   time.Now().String(),
+		ContractID: int(orderResp.Order.TradeInstruction.ContractId),
+		Status:     status,
+	})
+	shared_positions := GetSharedFilePath("positions.json")
+	// Marshal to JSON file
+	if err := SyncMapToJSONFile(&positions, shared_positions); err != nil {
+		fmt.Println("Error marshalling sync.Map to JSON:", err)
+		return
+	}
+
+}
 func updatePositionsToPending(orderResp OrderResponse) {
 	fmt.Println("Updating Positions for Pending Order")
-	positionId := fmt.Sprintf("%s-%s", orderResp.Order.Trade.StrategyName, orderResp.Order.Trade.Symbol)
+	positionId := fmt.Sprintf("%s-%s", 
+							orderResp.Order.TradeInstruction.StrategyName, 
+							orderResp.Order.TradeInstruction.Symbol)
 
 	p, ok := positions.Load(positionId)
 	if !ok {
 		fmt.Println("Positon does not exist")
 
 		positions.Store(positionId, definitions.Position{
-			Symbol:     orderResp.Order.Trade.Symbol,
-			Exchange:   orderResp.Order.Trade.Exchange,
+			Symbol:     orderResp.Order.TradeInstruction.Symbol,
+			Exchange:   orderResp.Order.TradeInstruction.Exchange,
 			Quantity:   0.0,
 			CostBasis:  0.0,
 			Datetime:   time.Now().String(),
-			ContractID: int(orderResp.Order.Trade.ContractId),
+			ContractID: int(orderResp.Order.TradeInstruction.ContractId),
 			Status:     "pending",
 		})
 	} else {
@@ -333,43 +372,6 @@ func GetSharedFilePath(filename string) string {
 
 	// Development environment
 	return filepath.Join("..", "..", "shared_files", filename)
-}
-
-func updatePositionsToFilled(orderResp OrderResponse, costBasis float64, quantity int) {
-	fmt.Println("Updating Positions for Filled Order")
-	positionId := fmt.Sprintf("%s-%s", orderResp.Order.Trade.StrategyName, orderResp.Order.Trade.Symbol)
-	status := "filled"
-	positionMap, ok := positions.Load(positionId)
-	if ok {
-		pos, ok := positionMap.(definitions.Position)
-		if ok {
-
-			fmt.Print("Position Map", pos)
-			quantity += pos.Quantity
-
-		}
-
-	}
-	if quantity == 0.0 {
-		status = "closed"
-	}
-
-	positions.Store(positionId, definitions.Position{
-		Symbol:     orderResp.Order.Trade.Symbol,
-		Exchange:   orderResp.Order.Trade.Exchange,
-		Quantity:   quantity, // * float64(posAdj),
-		CostBasis:  costBasis,
-		Datetime:   time.Now().String(),
-		ContractID: int(orderResp.Order.Trade.ContractId),
-		Status:     status,
-	})
-	shared_positions := GetSharedFilePath("positions.json")
-	// Marshal to JSON file
-	if err := SyncMapToJSONFile(&positions, shared_positions); err != nil {
-		fmt.Println("Error marshalling sync.Map to JSON:", err)
-		return
-	}
-
 }
 
 // SyncMapFromJSONFile unmarshals a JSON file into a sync.Map.
@@ -436,8 +438,8 @@ var positions sync.Map //
 
 func main() {
 	// Clear the original map to demonstrate loading from file
-	// sm = sync.Map{}
 	shared_positions := GetSharedFilePath("positions.json")
+	
 	// Unmarshal from JSON file
 	if err := SyncMapFromJSONFile(&positions, shared_positions); err != nil {
 		fmt.Println("Error unmarshalling JSON to sync.Map:", err)
@@ -445,8 +447,7 @@ func main() {
 	}
 	// Start the trade processing worker
 	startWorkerPool(5, processNewTrades)
-	// Start the trade processing worker
-	// startWorkerPool(5, tradeReconciliation)
+
 	// Start the gRPC server
 	listener, err := net.Listen("tcp", ":50051")
 	if err != nil {
