@@ -177,14 +177,6 @@ func addStrategyToConfigFile(scriptPath, strategyName, typeVal, setupName, marke
 	}
 }
 
-// Load system state
-// func loadState(filename string) (map[string]interface{}, error) {
-// 	shared_strategy_config := GetSharedFilePath(filename)
-// 	if err := loadStrategies(shared_strategy_config); err != nil {
-// 		log.Fatalf("Failed to load strategies: %v", err)
-// 	}
-// }
-
 func setupShutdown(strategyFilename string) {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
@@ -194,14 +186,6 @@ func setupShutdown(strategyFilename string) {
 		if err != nil {
 			fmt.Println("Error saving Strategy config to file before shutdown..")
 		}
-
-		// if data, err := json.Marshal(strategies); err == nil {
-		// 	os.WriteFile(strategyFilename, data, 0644)
-		// }
-
-		// if data, err := json.Marshal(positions); err == nil {
-		// 	os.WriteFile(strategyFilename, data, 0644)
-		// }
 		os.Exit(0)
 	}()
 }

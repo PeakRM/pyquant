@@ -490,6 +490,7 @@
           { headerName: 'Timeframe', field: 'timeframe', flex: 1, cellStyle: {"textAlign":"center"}},
           { headerName: 'Schedule', field: 'schedule', flex: 1 , cellStyle: {"textAlign":"center"}},
           { headerName: 'Position', field: 'openPosition', flex: 1 , cellStyle: {"textAlign":"center"}},
+          { headerName: 'Unrlzd', field: 'unrealized', flex: 1 , cellStyle: {"textAlign":"center"}},
           { headerName: 'Configure', field: 'editSetup', flex: 1,
             cellStyle: {"textAlign":"center"},
             cellRenderer: params => {
@@ -544,6 +545,7 @@
     // Handle incoming SSE messages
     source.onmessage = (event) => {
       const positions = JSON.parse(event.data);
+      let currentPriceMap = new Map();
       console.log(positions);
       for (const setupName in positions) {
         const strategyName = setupName.split("-")[0];
@@ -558,7 +560,27 @@
           console.log(rowNode);
           if (rowNode) {
             console.log("Setting value for: ", positions[setupName]);
+            if (rowNode.data.openPosition == positions[setupName].quantity){
+              continue
+            }
             rowNode.setDataValue('openPosition', positions[setupName].quantity);
+            if (positions[setupName].quantity == 0){
+              continue
+            }
+            let conId = positions[setupName].contract_id;
+            if (!currentPriceMap.has(conId)){
+              let exchange = positions[setupName].exchange;
+              url = `http://127.0.0.1:8000/api/IB/quote/${exchange}/${conId}`
+              fetch(url)
+                .then(response => response.json())
+                .then(data =>{ 
+                  console.log(data);
+                  currentPriceMap.set(conId, data.Last);
+                 }
+                );
+            }
+            let unrealized = currentPriceMap.get(conId) / positions[setupName].cost_basis - 1;
+            rowNode.setDataValue('unrealized', unrealized);
           }
         }
       }
