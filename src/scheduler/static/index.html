@@ -490,7 +490,11 @@
           { headerName: 'Timeframe', field: 'timeframe', flex: 1, cellStyle: {"textAlign":"center"}},
           { headerName: 'Schedule', field: 'schedule', flex: 1 , cellStyle: {"textAlign":"center"}},
           { headerName: 'Position', field: 'openPosition', flex: 1 , cellStyle: {"textAlign":"center"}},
-          { headerName: 'Unrlzd', field: 'unrealized', flex: 1 , cellStyle: {"textAlign":"center"}},
+          { headerName: 'Unrlzd', field: 'unrealized', flex: 1 , cellStyle: {"textAlign":"center"},
+             valueFormatter: params => {
+                return `${(100 * params.data.number).toFixed(2)} %` ;
+            },
+          },
           { headerName: 'Configure', field: 'editSetup', flex: 1,
             cellStyle: {"textAlign":"center"},
             cellRenderer: params => {
