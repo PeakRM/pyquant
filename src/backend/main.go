@@ -42,9 +42,9 @@ type TradeInstruction struct {
 }
 
 type Order struct {
-	TradeInstruction      TradeInstruction     `json:"trade"`
-	PriceQuote float64   `json:"price"`
-	Timestamp  time.Time `json:"timestamp"`
+	TradeInstruction	TradeInstruction	`json:"trade"`
+	PriceQuote 			float64				`json:"price"`
+	Timestamp 			time.Time			`json:"timestamp"`
 }
 
 type Trade struct {
@@ -95,9 +95,6 @@ func fetchPriceQuote(contractID int32, exchange string) (Quote, error) {
 	defer resp.Body.Close()
 
 	// Parse the response body to extract the price
-	// var response struct {
-	// 	Price float64 `json:"price"`
-	// }
 	var response Quote
 	err = json.NewDecoder(resp.Body).Decode(&response)
 	if err != nil {
@@ -259,7 +256,6 @@ func monitorFill(orderResp OrderResponse) {
 		resp, err := http.Get(url)
 		if err != nil {
 			fmt.Println("Error sending GET request:", err)
-			// return -1.0, err // Default price if there is an error
 		}
 		defer resp.Body.Close()
 
