@@ -472,6 +472,7 @@
             timeframe: setup.timeframe,
             schedule: setup.schedule,
             openPosition:  qty,
+            unrealized:0,
           });
         }
         console.log(rowData)
@@ -490,10 +491,13 @@
           { headerName: 'Timeframe', field: 'timeframe', flex: 1, cellStyle: {"textAlign":"center"}},
           { headerName: 'Schedule', field: 'schedule', flex: 1 , cellStyle: {"textAlign":"center"}},
           { headerName: 'Position', field: 'openPosition', flex: 1 , cellStyle: {"textAlign":"center"}},
-          { headerName: 'Unrlzd', field: 'unrealized', flex: 1 , cellStyle: {"textAlign":"center"},
-            valueFormatter: params => {
-              return `${(100 * params.data.number).toFixed(2)} %` ;
-            },
+          { headerName: 'Unrealized', field: 'unrealized', flex: 1 , cellStyle: {"textAlign":"center"},
+            valueFormatter: (params) => {
+              if (params.value === null || params.value === undefined) {
+                return '';
+              }
+              return `${(100 * params.value).toFixed(2)}%`;
+            }
           },
           { headerName: 'Configure', field: 'editSetup', flex: 1,
             cellStyle: {"textAlign":"center"},
@@ -583,6 +587,7 @@
                  }
                 );
             }
+            console.log("getting here")
             let unrealized = currentPriceMap.get(conId) / positions[setupName].cost_basis - 1;
             rowNode.setDataValue('unrealized', unrealized);
           }

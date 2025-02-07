@@ -42,9 +42,9 @@ type TradeInstruction struct {
 }
 
 type Order struct {
-	TradeInstruction	TradeInstruction	`json:"trade"`
-	PriceQuote 			float64				`json:"price"`
-	Timestamp 			time.Time			`json:"timestamp"`
+	TradeInstruction TradeInstruction `json:"trade"`
+	PriceQuote       float64          `json:"price"`
+	Timestamp        time.Time        `json:"timestamp"`
 }
 
 type Trade struct {
@@ -54,7 +54,7 @@ type Trade struct {
 	Time       time.Time `json:"time"`
 	ContractId int       `json:"contract_id"`
 	Side       string    `json:"side"`
-	Status	   string    `json:"order_status"`
+	Status     string    `json:"order_status"`
 }
 
 type Quote struct {
@@ -270,7 +270,7 @@ func monitorFill(orderResp OrderResponse) {
 			if trade.Id != orderResp.OrderId {
 				continue
 			}
-			if trade.Status != "Filled" || trade.Status != "Cancelled" {
+			if trade.Status != "Filled" && trade.Status != "Cancelled" {
 				continue
 			}
 
@@ -279,10 +279,10 @@ func monitorFill(orderResp OrderResponse) {
 				direction = -1.0
 			}
 
-			updatePositionsFromResponse(orderResp, trade.Status,  trade.Price,
-							 int(direction*math.Abs(float64(trade.Quantity)) ))
+			updatePositionsFromResponse(orderResp, trade.Status, trade.Price,
+				int(direction*math.Abs(float64(trade.Quantity))))
 			fmt.Printf("Order %s: %d", trade.Status, orderResp.OrderId)
-			isFiilled = true
+			isFilled = true
 		}
 		time.Sleep(time.Second)
 	}
@@ -291,8 +291,8 @@ func monitorFill(orderResp OrderResponse) {
 func updatePositionsFromResponse(orderResp OrderResponse, status string, costBasis float64, quantity int) {
 	fmt.Printf("Updating Positions for %s Order\n", status)
 	positionId := fmt.Sprintf("%s-%s",
-							 orderResp.Order.TradeInstruction.StrategyName,
-							 orderResp.Order.TradeInstruction.Symbol)
+		orderResp.Order.TradeInstruction.StrategyName,
+		orderResp.Order.TradeInstruction.Symbol)
 	positionMap, ok := positions.Load(positionId)
 	if ok {
 		pos, ok := positionMap.(definitions.Position)
@@ -325,9 +325,9 @@ func updatePositionsFromResponse(orderResp OrderResponse, status string, costBas
 }
 func updatePositionsToPending(orderResp OrderResponse) {
 	fmt.Println("Updating Positions for Pending Order")
-	positionId := fmt.Sprintf("%s-%s", 
-							orderResp.Order.TradeInstruction.StrategyName, 
-							orderResp.Order.TradeInstruction.Symbol)
+	positionId := fmt.Sprintf("%s-%s",
+		orderResp.Order.TradeInstruction.StrategyName,
+		orderResp.Order.TradeInstruction.Symbol)
 
 	p, ok := positions.Load(positionId)
 	if !ok {
@@ -435,7 +435,7 @@ var positions sync.Map //
 func main() {
 	// Clear the original map to demonstrate loading from file
 	shared_positions := GetSharedFilePath("positions.json")
-	
+
 	// Unmarshal from JSON file
 	if err := SyncMapFromJSONFile(&positions, shared_positions); err != nil {
 		fmt.Println("Error unmarshalling JSON to sync.Map:", err)
