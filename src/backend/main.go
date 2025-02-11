@@ -256,6 +256,7 @@ func monitorFill(orderResp OrderResponse) {
 		resp, err := http.Get(url)
 		if err != nil {
 			fmt.Println("Error sending GET request:", err)
+			continue
 		}
 		defer resp.Body.Close()
 
@@ -267,6 +268,8 @@ func monitorFill(orderResp OrderResponse) {
 		}
 
 		for _, trade := range response {
+			fmt.Printf("Order %s: %d", trade.Status, orderResp.OrderId)
+
 			if trade.Id != orderResp.OrderId {
 				continue
 			}
@@ -278,7 +281,6 @@ func monitorFill(orderResp OrderResponse) {
 			if orderResp.Order.TradeInstruction.Side == "SELL" {
 				direction = -1.0
 			}
-
 			updatePositionsFromResponse(orderResp, trade.Status, trade.Price,
 				int(direction*math.Abs(float64(trade.Quantity))))
 			fmt.Printf("Order %s: %d", trade.Status, orderResp.OrderId)

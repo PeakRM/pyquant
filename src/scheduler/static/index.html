@@ -550,50 +550,64 @@
 
     const source = new EventSource('/streamPositions');
 
-    // Handle incoming SSE messages
-    source.onmessage = (event) => {
-      const positions = JSON.parse(event.data);
-      let currentPriceMap = new Map();
-      console.log(positions);
-      for (const setupName in positions) {
-        const strategyName = setupName.split("-")[0];
-        const strategyGridApi = gridApiMap[strategyName];
-        // const setups = positions[strategyName];
-        console.log(strategyName);
-        console.log(gridApiMap);
-        console.log(strategyGridApi);
-        // console.log(setups);
-        if (strategyGridApi) {
-          const rowNode = strategyGridApi.getRowNode(setupName);
-          console.log(rowNode);
-          if (rowNode) {
-            console.log("Setting value for: ", positions[setupName]);
-            if (rowNode.data.openPosition == positions[setupName].quantity){
-              continue
-            }
-            rowNode.setDataValue('openPosition', positions[setupName].quantity);
-            if (positions[setupName].quantity == 0){
-              continue
-            }
-            let conId = positions[setupName].contract_id;
-            if (!currentPriceMap.has(conId)){
-              let exchange = positions[setupName].exchange;
-              url = `http://127.0.0.1:8000/api/IB/quote/${exchange}/${conId}`
-              fetch(url)
-                .then(response => response.json())
-                .then(data =>{ 
-                  console.log(data);
-                  currentPriceMap.set(conId, data.Last);
-                 }
-                );
-            }
-            console.log("getting here")
-            let unrealized = currentPriceMap.get(conId) / positions[setupName].cost_basis - 1;
+// Handle incoming SSE messages
+source.onmessage = async (event) => { // Make this async
+  const positions = JSON.parse(event.data);
+  let currentPriceMap = new Map();
+  console.log(positions);
+  
+  for (const setupName in positions) {
+    const strategyName = setupName.split("-")[0];
+    const strategyGridApi = gridApiMap[strategyName];
+    
+    if (strategyGridApi) {
+      const rowNode = strategyGridApi.getRowNode(setupName);
+      
+      if (rowNode) {
+        console.log("Setting value for: ", positions[setupName]);
+        if (rowNode.data.openPosition != positions[setupName].quantity) {
+          console.log("Setting positions");
+          rowNode.setDataValue('openPosition', positions[setupName].quantity);
+        }
+
+        if (positions[setupName].quantity == 0) {
+          console.log("position is nil, skipping rest of logic")
+          continue;
+        }
+        
+        console.log("Current prices:", currentPriceMap);
+
+        let conId = positions[setupName].contract_id;
+        if (!currentPriceMap.has(conId)) {
+          console.log("getting price update")
+          
+          let exchange = positions[setupName].exchange;
+          const url = `http://127.0.0.1:8000/api/IB/quote/${exchange}/${conId}`;
+          
+          try {
+            // Wait for the fetch to complete
+            const response = await fetch(url);
+            const data = await response.json();
+            console.log(data);
+            currentPriceMap.set(conId, data.last);
+            
+            // Now calculate unrealized value after we have the price
+            let unrealized = (currentPriceMap.get(conId) / positions[setupName].cost_basis - 1)* Math.sign(positions[setupName].quantity);
+            console.log(unrealized);
             rowNode.setDataValue('unrealized', unrealized);
+          } catch (error) {
+            console.error('Error fetching price:', error);
           }
+        } else {
+          // If we already have the price in the map, calculate unrealized value
+          let unrealized = (currentPriceMap.get(conId) / positions[setupName].cost_basis - 1) * Math.sign(positions[setupName].quantity);
+          console.log(unrealized);
+          rowNode.setDataValue('unrealized', unrealized);
         }
       }
     }
+  }
+}
   
     // 3. Toggle a setup by calling the backend endpoint
     async function toggleSetup(strategyName, setupName) {

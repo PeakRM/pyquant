@@ -250,10 +250,10 @@ func monitorScripts(checkInterval time.Duration) {
 					fmt.Println(cmd, cmd.Process, cmd.Process.Pid)
 					continue
 				}
-				fmt.Printf("process info:\n CMD: %s\n Process:%+v\n State:%s", cmd, cmd.Process, cmd.ProcessState)
 
 				// Check if process is still running
 				if err := cmd.Process.Signal(syscall.Signal(0)); err != nil {
+					fmt.Printf("process info:\n CMD: %s\n Process:%+v\n State:%s", cmd, cmd.Process, cmd.ProcessState)
 					log.Printf("Script %s has stopped unexpectedly", key)
 
 					// Get strategy and setup names

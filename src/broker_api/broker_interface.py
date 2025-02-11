@@ -62,10 +62,9 @@ class IBKRBroker(BrokerInterface):
     def __init__(self):
         self.host = os.getenv('IB_HOST', '127.0.0.1')
         self.port = int(os.getenv('IB_PORT', '7496'))
-        self.client_id = int(os.getenv('IB_CLIENT_ID', '1'))
+        self.client_id = 226
         self.ib = ib_insync.IB()
         self._connected = False
-        print(self.port)
 
     async def connect(self) -> bool:
         if not self._connected:
@@ -161,22 +160,28 @@ class IBKRBroker(BrokerInterface):
         trades=[]
         try:
             ib_trades = self.ib.trades()
+            # print(self.ib.trades())
+            # print(self.ib.orders())
             for trade in ib_trades:
                 quantity=0
                 price=0.
-                
-                if trade.orderStatus.status != "Filled":
-                    quantity=trade.execution.shares
-                    price=trade.execution.price
-
-                trades.append(Trade(
-                    order_id=trade.order.orderId,
+                print(trade)
+                if trade.orderStatus.status == "Filled":
+                    # print("FIlls:",trade.fills[0])
+                    quantity=trade.fills[0].execution.shares
+                    price=trade.fills[0].execution.price
+                    order_id = trade.fills[0].execution.orderId
+        
+                t = Trade(
+                    order_id=order_id,
                     contract_id=trade.contract.conId,
-                    time=trade.time,
+                    time=datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"),
                     quantity=quantity,
                     price=price,
                     side=OrderSide.BUY if trade.order.action == "BUY" else OrderSide.SELL,
-                    order_status=trade.orderStatus.status))
+                    order_status=trade.orderStatus.status)
+                # print(t)
+                trades.append(t)
             return trades
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to get : {str(e)}")
@@ -184,17 +189,17 @@ class IBKRBroker(BrokerInterface):
 
     async def place_order(self, order: Order) -> str:
         await self.connect()
+        print(self.client_id, self._connected)
         ib_contract = self._convert_contract(contract_id=order.trade.contract_id,
                                              exchange=order.trade.exchange)
         
         try:
             await self.ib.qualifyContractsAsync(ib_contract)
             
-            ib_order = ib_insync.Order(
+            ib_order = ib_insync.LimitOrder(
                 action="BUY" if order.trade.side == OrderSide.BUY else "SELL",
                 totalQuantity=order.trade.quantity,
                 # orderType="MKT" if order.order_type == OrderType.MARKET else "LMT",
-                orderType="LMT",
                 # lmtPrice=order.limit_price if order.order_type == OrderType.LIMIT else None
                 lmtPrice=order.price)
             
