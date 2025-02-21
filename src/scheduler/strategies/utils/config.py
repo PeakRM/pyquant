@@ -1,5 +1,6 @@
 import json
 from typing import Dict, Any
+import os
 
 
 
@@ -7,6 +8,11 @@ def load_strategy_config(filepath: str) -> Dict[str, Any]:
     try:
         with open(filepath, 'r') as f:
             return json.load(f)
+    except FileNotFoundError:
+        fp = filepath.split('\\')[-1]
+        print(fp)
+        with open(os.path.join("/shared", fp), 'r') as f:
+            return json.load(f)      
     except Exception as e:
         print("Strategy Config unable to load: ",e)
         return {}

@@ -247,7 +247,7 @@ func monitorScripts(checkInterval time.Duration) {
 			runningMu.Lock()
 			for key, cmd := range runningProcs {
 				if cmd == nil || cmd.ProcessState == nil {
-					fmt.Println(cmd, cmd.Process, cmd.Process.Pid)
+					// fmt.Println(cmd, cmd.Process, cmd.Process.Pid)
 					continue
 				}
 

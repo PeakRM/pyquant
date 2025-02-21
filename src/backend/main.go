@@ -381,7 +381,7 @@ func SyncMapFromJSONFile(m *sync.Map, filename string) error {
 		return err
 	}
 
-	normalMap := make(map[string]interface{})
+	normalMap := make(map[string]json.RawMessage)
 	// Unmarshal JSON data into a slice of Trade structs
 	err = json.Unmarshal(byteValue, &normalMap)
 	if err != nil {
@@ -390,12 +390,13 @@ func SyncMapFromJSONFile(m *sync.Map, filename string) error {
 
 	// Store each key-value pair back into the sync.Map
 	for k, v := range normalMap {
-		vpos, ok := v.(definitions.Position)
-		if !ok {
-			fmt.Println("Error asserting Position from JSON -->", ok, v)
+		var pos definitions.Position
+		err := json.Unmarshal(v, &pos)
+		if err != nil {
+			fmt.Printf("Error unmarshaling position for key %s: %v\n", k, err)
 			continue
 		}
-		m.Store(k, vpos)
+		m.Store(k, pos)
 	}
 	return nil
 }
