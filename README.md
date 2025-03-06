@@ -8,7 +8,7 @@ can be extended to use other languages, including Go.
 Broker_API service is how the system communicates to different
 brokers (IBKR, TDA, etc.) to centralize execution and reconciliation. 
 
-Roadmap
+## Roadmap
     - Add ib gateway to docker-compose
     - Update dockerfile for new frontend
     - Fix position and open pnl tracking on frontend
