@@ -10,7 +10,7 @@
     "lucide-react": "^0.477.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-scripts": "5.0.1",
+    "react-scripts": "^5.0.1",
     "recharts": "^2.15.1",
     "web-vitals": "^2.1.4"
   },
@@ -20,7 +20,10 @@
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
-  "proxy": "http://localhost:8080",
+  "options": {
+"allowedHosts": ["localhost", ".localhost"],
+"proxy": "https://localhost:8080/"
+},
   "eslintConfig": {
     "extends": [
       "react-app",

@@ -2,6 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { AlertCircle, Play, Pause, Settings, Plus, X, RefreshCw, TrendingUp, BarChart2, Activity, Calendar } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
+const TICK_VALUE_MAP = new Map([
+  ["MES", 5.0],
+  ["MGC", 10.0],
+  
+]);
+
 // Main Dashboard Component
 export default function TradingDashboard() {
   // State management
@@ -17,39 +23,40 @@ export default function TradingDashboard() {
   const [loading, setLoading] = useState(true);
   const [chartData, setChartData] = useState([]);
   const [chartLoading, setChartLoading] = useState(false);
-  
+  const [contractResult, setContractResult] = useState(null);
+  const SCHEDULER_API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:8080' : 'http://scheduler';
+
   // Fetch strategies on component mount
   useEffect(() => {
     fetchStrategies();
     
     // Set up position streaming
-    const positionSource = new EventSource('/streamPositions');
+    const positionSource = new EventSource(`${SCHEDULER_API_BASE}/streamPositions`);
     
     positionSource.onmessage = async (event) => {
       const newPositions = JSON.parse(event.data);
       const priceMap = new Map(currentPrices);
-      console.log(newPositions);
+
       for (const setupName in newPositions) {
         const position = newPositions[setupName];
-        console.log(position);
         
         if (position.quantity !== 0) {
           const conId = position.contract_id;
           if (!priceMap.has(conId)) {
             try {
               const exchange = position.exchange;
-              const response = await fetch(`http://127.0.0.1:8000/api/IB/quote/${exchange}/${conId}`);
+              const response = await fetch(`${SCHEDULER_API_BASE}/proxy/quote/${exchange}/${conId}`);
               const data = await response.json();
               priceMap.set(conId, data.last);
               
               // Calculate unrealized value
-              position.unrealized = (priceMap.get(conId) / position.cost_basis - 1) * 
-                Math.sign(position.quantity);
+              position.unrealized = ((priceMap.get(conId) - position.cost_basis )*TICK_VALUE_MAP.get(position.symbol)) * 
+              Math.sign(position.quantity);
             } catch (error) {
               console.error('Error fetching price:', error);
             }
           } else {
-            position.unrealized = (priceMap.get(conId) / position.cost_basis - 1) * 
+            position.unrealized = ((priceMap.get(conId) - position.cost_basis )*TICK_VALUE_MAP.get(position.symbol)) * 
               Math.sign(position.quantity);
             
           }
@@ -61,7 +68,7 @@ export default function TradingDashboard() {
     };
     
     // Set up strategy config refresh streaming
-    const refreshSource = new EventSource('/refreshStrategyConfig');
+    const refreshSource = new EventSource(`${SCHEDULER_API_BASE}/refreshStrategyConfig`);
     refreshSource.onmessage = (event) => {
       console.log("Strategy update notification:", event.data);
       fetchStrategies();
@@ -71,13 +78,13 @@ export default function TradingDashboard() {
       positionSource.close();
       refreshSource.close();
     };
-  }, [currentPrices]);
+  }, []);
   
   // Fetch strategies from backend
   const fetchStrategies = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/strategies');
+      const response = await fetch(`${SCHEDULER_API_BASE}/strategies`);
       const data = await response.json();
       console.log(data);
       setStrategies(data);
@@ -93,13 +100,7 @@ export default function TradingDashboard() {
     setChartLoading(true);
     
     const setup = strategies[strategyName].setups[setupName];
-    // const position = positions[setupName];
-    
-    // if (!position) {
-    //   setChartLoading(false);
-    //   return;
-    // }
-    
+
     try {
       // Calculate dates based on timeframe
       const endDate = new Date();
@@ -126,7 +127,7 @@ export default function TradingDashboard() {
         currency: "USD"
       };
       
-      const url = `/proxy/historicalData?start_time=${startTime}&end_time=${endTime}&bar_size=${barSize}`;
+      const url = `${SCHEDULER_API_BASE}/proxy/historicalData?start_time=${startTime}&end_time=${endTime}&bar_size=${barSize}`;
       console.log(url);
       const response = await fetch(url, {
         method: 'POST',
@@ -141,12 +142,12 @@ export default function TradingDashboard() {
         
         // Format data for chart
         const formattedData = data.map(bar => ({
-          date: new Date(bar.date).toLocaleString(),
+          date: new Date(bar.timestamp).toLocaleString(),
           open: bar.open,
           high: bar.high,
           low: bar.low,
           close: bar.close,
-          volume: bar.volume
+          volume: bar.volume,
         }));
         
         setChartData(formattedData);
@@ -174,7 +175,7 @@ export default function TradingDashboard() {
     
     try {
       // Make API call in background
-      await fetch(`/strategies/${strategyName}/${setupName}/toggle`, { method: 'POST' });
+      await fetch(`${SCHEDULER_API_BASE}/strategies/${strategyName}/${setupName}/toggle`, { method: 'POST' });
     } catch (error) {
       console.error("Failed to toggle setup:", error);
       // Revert the change if the API call fails
@@ -218,7 +219,7 @@ export default function TradingDashboard() {
     const formData = new FormData(e.target);
     
     try {
-      const response = await fetch('/uploadNewStrategy', {
+      const response = await fetch(`${SCHEDULER_API_BASE}/uploadNewStrategy`, {
         method: 'POST',
         body: formData
       });
@@ -243,7 +244,7 @@ export default function TradingDashboard() {
     const urlEncodedData = new URLSearchParams(formData);
     
     try {
-      const response = await fetch('/updateSetup', {
+      const response = await fetch(`${SCHEDULER_API_BASE}/updateSetup`, {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: urlEncodedData
@@ -269,7 +270,7 @@ export default function TradingDashboard() {
     const urlEncodedData = new URLSearchParams(formData);
     
     try {
-      const response = await fetch('/addSetup', {
+      const response = await fetch(`${SCHEDULER_API_BASE}/addSetup`, {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: urlEncodedData
@@ -287,10 +288,38 @@ export default function TradingDashboard() {
     }
   };
 
+  // Handle add setup form submission
+  const handleGetContractId = async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const payload = Object.fromEntries(formData);
+    console.log('Sending request to:', `${SCHEDULER_API_BASE}/proxy/contractId`);
+    console.log('With payload:', payload);
+    
+    try {
+      const response = await fetch(`${SCHEDULER_API_BASE}/proxy/contractId`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        // credentials: 'include',
+        body: JSON.stringify(payload)
+      });
+    
+      const result = await response.json();
+      setContractResult(result); // Store the result in state
+    } catch (error) {
+      console.error('Error:', error);
+      setContractResult({ error: error.message }); // Store error in state
+    }
+  };
+
   // Format percentage value
   const formatPercent = (value) => {
     if (value === null || value === undefined) return '';
     return `${(value * 100).toFixed(2)}%`;
+  };
+  const formatDollar = (value) => {
+    if (value === null || value === undefined) return '';
+    return `$${(value).toFixed(2)}`;
   };
 
   // Display performance indicator based on value
@@ -309,7 +338,7 @@ export default function TradingDashboard() {
         <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex justify-between items-center">
           <h1 className="text-2xl font-bold text-gray-900 flex items-center">
             <BarChart2 className="mr-2" /> 
-            pyQuant Dashboard
+            Dashboard
           </h1>
           <div className="flex space-x-2">
             <button 
@@ -319,7 +348,10 @@ export default function TradingDashboard() {
               <Plus size={18} className="mr-1" /> Add Strategy
             </button>
             <button 
-              onClick={() => setIsSidebarOpen(true)}
+              onClick={() => {
+                setIsSidebarOpen(true);
+                setContractResult("");
+              }}
               className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition"
             >
               Contract ID Tool
@@ -349,12 +381,22 @@ export default function TradingDashboard() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis 
                     dataKey="date" 
+                    angle={-45}
                     tickFormatter={(value) => {
                       const date = new Date(value);
-                      return date.toLocaleDateString();
+                      // return date.toLocaleDateString();
+                      const timeFormatter = new Intl.DateTimeFormat('en-US', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        // second: '2-digit',
+                        hour12: false // Use 24-hour format
+                      });
+                      
+                      const formattedTime = timeFormatter.format(date);
+                      return formattedTime;
                     }}
                   />
-                  <YAxis />
+                  <YAxis type="number" domain={['auto', 'auto']} />
                   <Tooltip />
                   <Legend />
                   <Line type="monotone" dataKey="close" stroke="#3B82F6" name="Close Price" dot={false} />
@@ -444,7 +486,7 @@ export default function TradingDashboard() {
                                 <div className="flex items-center justify-center space-x-1">
                                   {getPerformanceIndicator(performanceValue)}
                                   <span className={`text-sm ${performanceValue > 0 ? 'text-green-600' : performanceValue < 0 ? 'text-red-600' : 'text-gray-500'}`}>
-                                    {formatPercent(performanceValue)}
+                                    {formatDollar(performanceValue)}
                                   </span>
                                 </div>
                               </td>
@@ -826,7 +868,7 @@ export default function TradingDashboard() {
             
             <h2 className="text-xl font-semibold mb-6">Get Contract ID (IBKR)</h2>
             
-            <form id="contractForm" className="space-y-4">
+            <form id="contractForm" className="space-y-4" onSubmit={handleGetContractId}>
               <div>
                 <label className="block text-sm font-medium mb-1">Symbol</label>
                 <input 
@@ -885,8 +927,15 @@ export default function TradingDashboard() {
               </button>
             </form>
             
-            <div id="result" className="mt-6 p-4 bg-gray-100 rounded hidden">
-              {/* Result will be displayed here */}
+            <div id="result" className={`mt-6 p-4 bg-gray-100 rounded ${!contractResult ? 'hidden' : ''}`}>
+              {contractResult && (
+                <div>
+                  <h3 className="font-medium mb-2">Result:</h3>
+                  <pre className="whitespace-pre-wrap text-sm">
+                    {JSON.stringify(contractResult, null, 2)}
+                  </pre>
+                </div>
+              )}
             </div>
           </div>
         </div>

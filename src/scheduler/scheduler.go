@@ -100,7 +100,9 @@ func main() {
 	http.Handle("/uploadNewStrategy", corsMiddleware(http.HandlerFunc(newStrategyHandler)))
 	http.Handle("/updateSetup", corsMiddleware(http.HandlerFunc(updateSetup)))
 	http.Handle("/addSetup", corsMiddleware(http.HandlerFunc(addSetupHandler)))
+	http.Handle("/proxy/quote/", corsMiddleware(http.HandlerFunc(proxyQuote)))
 	http.Handle("/proxy/historicalData", corsMiddleware(http.HandlerFunc(proxyHistoricalData)))
+	http.Handle("/proxy/contractId", corsMiddleware(http.HandlerFunc(proxyContractId)))
 
 	// 3. Serve frontend from ./static/
 	http.Handle("/", http.FileServer(http.Dir("./static/react-app/build")))
@@ -517,10 +519,90 @@ func addSetupHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println(strategyName, newSetup)
 }
 
+func proxyQuote(w http.ResponseWriter, r *http.Request) {
+	// Get query params from original request
+	parts := splitPath(r.URL.Path) // e.g. ["strategies","StrategyA","StrategyA-ZF","toggle"]
+	if len(parts) < 2 {
+		http.Error(w, "Not found", http.StatusNotFound)
+		return
+	}
+	// parts[0] = "proxy"
+	// parts[1] = "quote"
+	// parts[2] = exchange
+	// parts[3] = contractId
+
+	if len(parts) < 3 {
+		http.Error(w, "Contract ID required", http.StatusBadRequest)
+		return
+	}
+	exchange := parts[2]   //string
+	contractId := parts[3] //int
+	targetURL := fmt.Sprintf("http://localhost:8000/api/IB/quote/%s/%s", exchange, contractId)
+	// Create a new request
+	resp, err := http.Get(targetURL)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+
+	// Set status code
+	w.WriteHeader(resp.StatusCode)
+
+	// Copy response body directly to the response writer
+	_, err = io.Copy(w, resp.Body)
+	if err != nil {
+		log.Printf("Error copying response: %v", err)
+	}
+}
+
 func proxyHistoricalData(w http.ResponseWriter, r *http.Request) {
 	// Get query params from original request
-	targetURL := "http://localhost:8080/api/IB/historicalData" + r.URL.RawQuery
+	targetURL := "http://localhost:8000/api/IB/historicalData?" + r.URL.RawQuery
 
+	// Create a new request
+	proxyReq, err := http.NewRequest(r.Method, targetURL, r.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		fmt.Println("Error: ", err)
+		fmt.Println("Request: ", proxyReq)
+		return
+	}
+
+	// Copy headers
+	for header, values := range r.Header {
+		for _, value := range values {
+			proxyReq.Header.Add(header, value)
+		}
+	}
+
+	// Send the request
+	client := &http.Client{}
+	resp, err := client.Do(proxyReq)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	// Copy response headers
+	for header, values := range resp.Header {
+		for _, value := range values {
+			w.Header().Add(header, value)
+		}
+	}
+
+	// Set status code
+	w.WriteHeader(resp.StatusCode)
+
+	// Copy response body
+	io.Copy(w, resp.Body)
+	fmt.Println(resp.Body)
+}
+
+func proxyContractId(w http.ResponseWriter, r *http.Request) {
+	// Get query params from original request
+	targetURL := "http://localhost:8000/api/IB/contract-id"
 	// Create a new request
 	proxyReq, err := http.NewRequest(r.Method, targetURL, r.Body)
 	if err != nil {
