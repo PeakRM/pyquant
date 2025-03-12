@@ -22,10 +22,14 @@ services:
       - "8000:8000"
     environment:
       - SHARED_PATH=/shared
+      - IB_HOST=ibkr
+      - IB_PORT=8888
     volumes:
       - ./shared_files:/shared
     networks:
       - project_network
+    depends_on:
+      - ibkr
 
   scheduler:
     build:
@@ -41,6 +45,27 @@ services:
       - ./shared_files:/shared      
     networks:
       - project_network
+
+  ibkr:
+    image: ghcr.io/extrange/ibkr:latest
+    container_name: ibkr
+    ports:
+      - "127.0.0.1:6080:6080" # noVNC browser access
+      - "127.0.0.1:8888:8888" # API access
+    ulimits:
+      nofile: 10000
+    environment:
+      USERNAME: ${USERNAME}
+      PASSWORD: ${PASSWORD}
+      # Configure IB Gateway instead of TWS
+      GATEWAY_OR_TWS: gateway
+      # Allow API connections
+      IBC_ReadOnlyApi: no
+      # Optional: Set trading mode (paper/live)
+      IBC_TradingMode: paper
+    networks:
+      - project_network
+    restart: unless-stopped
 
 networks:
   project_network:

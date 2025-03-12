@@ -537,7 +537,8 @@ func proxyQuote(w http.ResponseWriter, r *http.Request) {
 	}
 	exchange := parts[2]   //string
 	contractId := parts[3] //int
-	targetURL := fmt.Sprintf("http://localhost:8000/api/IB/quote/%s/%s", exchange, contractId)
+	// targetURL := fmt.Sprintf("http://localhost:8000/api/IB/quote/%s/%s", exchange, contractId)
+	targetURL := fmt.Sprintf("http://broker_api:8000/api/IB/quote/%s/%s", exchange, contractId)
 	// Create a new request
 	resp, err := http.Get(targetURL)
 	if err != nil {
@@ -558,7 +559,8 @@ func proxyQuote(w http.ResponseWriter, r *http.Request) {
 
 func proxyHistoricalData(w http.ResponseWriter, r *http.Request) {
 	// Get query params from original request
-	targetURL := "http://localhost:8000/api/IB/historicalData?" + r.URL.RawQuery
+	// targetURL := "http://localhost:8000/api/IB/historicalData?" + r.URL.RawQuery
+	targetURL := "http://broker_api:8000/api/IB/historicalData?" + r.URL.RawQuery
 
 	// Create a new request
 	proxyReq, err := http.NewRequest(r.Method, targetURL, r.Body)
@@ -602,7 +604,8 @@ func proxyHistoricalData(w http.ResponseWriter, r *http.Request) {
 
 func proxyContractId(w http.ResponseWriter, r *http.Request) {
 	// Get query params from original request
-	targetURL := "http://localhost:8000/api/IB/contract-id"
+	// targetURL := "http://localhost:8000/api/IB/contract-id"
+	targetURL := "http://broker_api:8000/api/IB/contract-id"
 	// Create a new request
 	proxyReq, err := http.NewRequest(r.Method, targetURL, r.Body)
 	if err != nil {

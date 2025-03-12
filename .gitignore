@@ -19,3 +19,4 @@ src/scheduler/scheduler.go
 src/scheduler/strategies/logs
 /other
 .ipynb_checkpoints/Hourly E-mini analysis (23-25)-checkpoint.ipynb
+.env

@@ -2,8 +2,8 @@ from abc import ABC, abstractmethod
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from fastapi import HTTPException
-import ib_insync
-from ib_insync import util
+import ib_async
+from ib_async import util
 from models import *
 from dotenv import load_dotenv
 import os
@@ -15,11 +15,11 @@ import re
 import nest_asyncio
 nest_asyncio.apply()
 
-# Load environment variables
-env_path = Path('.env')
-if not env_path.exists():
-    raise FileNotFoundError(f"Environment file not found at {env_path}")
-load_dotenv(env_path)
+# # Load environment variables
+# env_path = Path('.env')
+# if not env_path.exists():
+#     raise FileNotFoundError(f"Environment file not found at {env_path}")
+# load_dotenv(env_path)
 
 # Abstract Broker Interface
 class BrokerInterface(ABC):
@@ -63,7 +63,7 @@ class IBKRBroker(BrokerInterface):
         self.host = os.getenv('IB_HOST', '127.0.0.1')
         self.port = int(os.getenv('IB_PORT', '7496'))
         self.client_id = 226
-        self.ib = ib_insync.IB()
+        self.ib = ib_async.IB()
         self._connected = False
 
     async def connect(self) -> bool:
@@ -81,20 +81,20 @@ class IBKRBroker(BrokerInterface):
             self._connected = False
         return True
 
-    def _convert_contract(self, contract: Optional[Contract]=None, contract_id:Optional[int]=None,exchange:Optional[str]=None) -> ib_insync.Contract:
+    def _convert_contract(self, contract: Optional[Contract]=None, contract_id:Optional[int]=None,exchange:Optional[str]=None) -> ib_async.Contract:
         if contract is None or contract.contract_type=="":
             try:
-                return ib_insync.Contract(conId=contract_id, exchange=exchange)
+                return ib_async.Contract(conId=contract_id, exchange=exchange)
             except Exception:
                 raise ValueError(f"You did not pass the correct parameters: \n\t{contract}\n\t{contract_id}\n\t{exchange}")
 
 
         if contract.contract_type == ContractType.STOCK:
-            return ib_insync.Stock(contract.symbol, contract.exchange or "SMART", contract.currency)
+            return ib_async.Stock(contract.symbol, contract.exchange or "SMART", contract.currency)
         elif contract.contract_type == ContractType.FUTURE:
-            return ib_insync.Future(contract.symbol, contract.expiry, contract.exchange)
+            return ib_async.Future(contract.symbol, contract.expiry, contract.exchange)
         elif contract.contract_type == ContractType.ETF:
-            return ib_insync.Stock(contract.symbol, contract.exchange or "SMART", contract.currency)
+            return ib_async.Stock(contract.symbol, contract.exchange or "SMART", contract.currency)
         raise ValueError(f"Unsupported contract type: {contract.contract_type}")
 
     async def get_quote(self, contract: Contract) -> Quote:
@@ -118,7 +118,7 @@ class IBKRBroker(BrokerInterface):
 
     async def get_quote_by_contract_id(self,exchange:str, contract_id:int) -> Quote:
         await self.connect()
-        ib_contract = ib_insync.Contract(conId=contract_id, exchange=exchange)
+        ib_contract = ib_async.Contract(conId=contract_id, exchange=exchange)
         
         try:
             await self.ib.qualifyContractsAsync(ib_contract)
@@ -196,7 +196,7 @@ class IBKRBroker(BrokerInterface):
         try:
             await self.ib.qualifyContractsAsync(ib_contract)
             
-            ib_order = ib_insync.LimitOrder(
+            ib_order = ib_async.LimitOrder(
                 action="BUY" if order.trade.side == OrderSide.BUY else "SELL",
                 totalQuantity=order.trade.quantity,
                 # orderType="MKT" if order.order_type == OrderType.MARKET else "LMT",
@@ -326,7 +326,7 @@ class IBKRBroker(BrokerInterface):
                 if open_trade is None:
                     return 0
                 direction = 'BUY' if open_trade.position < 0 else 'SELL'
-                order = ib_insync.MarketOrder(direction, abs(open_trade.position))
+                order = ib_async.MarketOrder(direction, abs(open_trade.position))
                 await self.ib.qualifyContractsAsync(open_trade.contract)
                 self.ib.placeOrder(open_trade.contract, order)
         except Exception as e:

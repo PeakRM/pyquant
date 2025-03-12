@@ -84,8 +84,8 @@ func (s *server) SendTrade(ctx context.Context, trade *pb.Trade) (*pb.TradeRespo
 func fetchPriceQuote(contractID int32, exchange string) (Quote, error) {
 	// url := fmt.Sprintf("http://127.0.0.1:8000/quoteByConId?conId=%d&exchange=%s", contractID, exchange) //local dev test_api
 	// url := fmt.Sprintf("http://broker_api:8000/quoteByConId?conId=%d&exchange=%s", contractID, exchange) // docker test test_api
-	url := fmt.Sprintf("http://127.0.0.1:8000/api/IB/quote/%s/%d", exchange, contractID) //local dev broker_api
-	// url := fmt.Sprintf("http://broker_api:8000/api/IB/quote/%s/%d", exchange, contractID) //docker dev broker_api
+	// url := fmt.Sprintf("http://127.0.0.1:8000/api/IB/quote/%s/%d", exchange, contractID) //local dev broker_api
+	url := fmt.Sprintf("http://broker_api:8000/api/IB/quote/%s/%d", exchange, contractID) //docker dev broker_api
 
 	resp, err := http.Get(url)
 	if err != nil {
@@ -118,7 +118,8 @@ func transmitOrder(order Order, testTrade bool) (int, error) {
 	// url := "http://127.0.0.1:8000/placeLimitOrder?broker=IB"
 	// url := "http://broker_api:8000/placeLimitOrder?broker=IB"
 
-	url := "http://127.0.0.1:8000/api/IB/order"
+	// url := "http://127.0.0.1:8000/api/IB/order"
+	url := "http://broker_api:8000/api/IB/order"
 	orderJSON, err := json.Marshal(order)
 	if err != nil {
 		fmt.Println("Error marshaling order to JSON:", err)
@@ -251,8 +252,9 @@ func monitorFill(orderResp OrderResponse) {
 	for !isFilled {
 
 		// url := fmt.Sprintf("http://127.0.0.1:8000/fills?order_id=%d", orderResp.OrderId)
-		url := "http://127.0.0.1:8000/api/IB/trades"
 		// url := fmt.Sprintf("http://broker_api:8000/fills?Id=%d", orderResp.OrderId)
+		// url := "http://127.0.0.1:8000/api/IB/trades"
+		url := "http://broker_api:8000/api/IB/trades"
 		resp, err := http.Get(url)
 		if err != nil {
 			fmt.Println("Error sending GET request:", err)
