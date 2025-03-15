@@ -47,7 +47,7 @@ services:
       - project_network
 
   ibkr:
-    image: ghcr.io/extrange/ibkr:latest
+    image: ghcr.io/extrange/ibkr:stable
     container_name: ibkr
     ports:
       - "127.0.0.1:6080:6080" # noVNC browser access
@@ -63,6 +63,8 @@ services:
       IBC_ReadOnlyApi: no
       # Optional: Set trading mode (paper/live)
       IBC_TradingMode: paper
+      IBC_AcceptIncomingConnectionAction: accept
+      IBC_AcceptNonBrokerageAccountWarning: yes
     networks:
       - project_network
     restart: unless-stopped
