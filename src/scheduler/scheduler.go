@@ -499,9 +499,11 @@ func addSetupHandler(w http.ResponseWriter, r *http.Request) {
 		ContractId: contractIdFmtd,
 		Timeframe:  r.FormValue("timeframe"),
 		Schedule:   r.FormValue("schedule"),
-		MarketData: strings.Split(r.FormValue("otherMarketData"), ","),
+		MarketData: strings.Split(r.FormValue("market_data"), ","),
 		Active:     false,
 	}
+	fmt.Println(r.FormValue("market_data"))
+	fmt.Println(newSetup)
 
 	// 4) Update the local strategies map
 	//strat := strategies[foundStrategy]

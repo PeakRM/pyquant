@@ -8,7 +8,8 @@ services:
     ports:
       - "50051:50051"
     environment:
-      - SHARED_PATH=/shared    
+      - SHARED_PATH=/shared
+      - TZ=America/New_York
     volumes:
       - ./shared_files:/shared
     networks:
@@ -23,7 +24,9 @@ services:
     environment:
       - SHARED_PATH=/shared
       - IB_HOST=ibkr
-      - IB_PORT=8888
+      - IB_PORT=${IB_PORT}
+      - IB_CLIENT_ID=${IB_CLIENT_ID}
+      - TZ=America/New_York
     volumes:
       - ./shared_files:/shared
     networks:
@@ -41,6 +44,7 @@ services:
       - broker_api
     environment:
       - SHARED_PATH=/shared 
+      - TZ=America/New_York
     volumes:
       - ./shared_files:/shared      
     networks:
@@ -57,12 +61,13 @@ services:
     environment:
       USERNAME: ${USERNAME}
       PASSWORD: ${PASSWORD}
+      TZ: America/New_York
       # Configure IB Gateway instead of TWS
       GATEWAY_OR_TWS: gateway
       # Allow API connections
       IBC_ReadOnlyApi: no
       # Optional: Set trading mode (paper/live)
-      IBC_TradingMode: paper
+      IBC_TradingMode: live
       IBC_AcceptIncomingConnectionAction: accept
       IBC_AcceptNonBrokerageAccountWarning: yes
     networks:

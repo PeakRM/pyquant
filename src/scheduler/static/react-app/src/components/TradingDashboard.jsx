@@ -5,7 +5,9 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 const TICK_VALUE_MAP = new Map([
   ["MES", 5.0],
   ["MGC", 10.0],
-  
+  ["MCL", 100.0],
+  ["MYM", 1.0],
+  ["MNQ", 2.0],
 ]);
 
 // Main Dashboard Component
@@ -39,7 +41,7 @@ export default function TradingDashboard() {
 
       for (const setupName in newPositions) {
         const position = newPositions[setupName];
-        
+        const tick_value = TICK_VALUE_MAP.has(position.symbol) ? TICK_VALUE_MAP.get(position.symbol) : 1.0 
         if (position.quantity !== 0) {
           const conId = position.contract_id;
           if (!priceMap.has(conId)) {
@@ -48,16 +50,13 @@ export default function TradingDashboard() {
               const response = await fetch(`${SCHEDULER_API_BASE}/proxy/quote/${exchange}/${conId}`);
               const data = await response.json();
               priceMap.set(conId, data.last);
-              
               // Calculate unrealized value
-              position.unrealized = ((priceMap.get(conId) - position.cost_basis )*TICK_VALUE_MAP.get(position.symbol)) * 
-              Math.sign(position.quantity);
+              position.unrealized = ((priceMap.get(conId) - position.cost_basis )*tick_value) * Math.sign(position.quantity);
             } catch (error) {
               console.error('Error fetching price:', error);
             }
           } else {
-            position.unrealized = ((priceMap.get(conId) - position.cost_basis )*TICK_VALUE_MAP.get(position.symbol)) * 
-              Math.sign(position.quantity);
+            position.unrealized = ((priceMap.get(conId) - position.cost_basis )*tick_value) * Math.sign(position.quantity);
             
           }
         }
@@ -699,7 +698,7 @@ export default function TradingDashboard() {
                   type="text" 
                   id="editContractId" 
                   name="contract_id"
-                  defaultValue={selectedSetup.contractId}
+                  defaultValue={selectedSetup.contract_id}
                 />
               </div>
               
@@ -731,8 +730,8 @@ export default function TradingDashboard() {
                   className="block w-full border rounded p-2" 
                   type="text" 
                   id="editOtherMarketData" 
-                  name="otherMarketData"
-                  defaultValue={selectedSetup.marketData ? selectedSetup.marketData.join(',') : ''}
+                  name="market_data"
+                  defaultValue={selectedSetup.market_data ? selectedSetup.market_data.join(',') : ''}
                 />
               </div>
               
@@ -835,7 +834,7 @@ export default function TradingDashboard() {
                   className="block w-full border rounded p-2" 
                   type="text" 
                   id="addOtherMarketData" 
-                  name="otherMarketData"
+                  name="market_data"
                 />
               </div>
               
