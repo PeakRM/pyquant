@@ -26,7 +26,7 @@ export default function TradingDashboard() {
   const [chartData, setChartData] = useState([]);
   const [chartLoading, setChartLoading] = useState(false);
   const [contractResult, setContractResult] = useState(null);
-  const SCHEDULER_API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:8080' : 'http://scheduler';
+  const SCHEDULER_API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:8080' : '';
 
   // Fetch strategies on component mount
   useEffect(() => {
