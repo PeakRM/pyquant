@@ -734,7 +734,7 @@ func updateSetup(w http.ResponseWriter, r *http.Request) {
 	foundSetup.ContractId, _ = strconv.Atoi(r.FormValue("contract_id"))
 	foundSetup.Timeframe = r.FormValue("timeframe")
 	foundSetup.Schedule = r.FormValue("schedule")
-	foundSetup.MarketData = strings.Split(r.FormValue("otherMarketData"), ",")
+	foundSetup.MarketData = strings.Split(r.FormValue("market_data"), ",")
 
 	// 4) Update the local strategies map
 	strat := strategies[foundStrategy]
