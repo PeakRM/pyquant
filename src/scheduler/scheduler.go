@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,6 +19,11 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	pb "scheduler/tradepb"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 // -----------------------------------------------------------------
@@ -365,6 +371,8 @@ func handleStrategyActions(w http.ResponseWriter, r *http.Request) {
 	switch action {
 	case "toggle":
 		toggleSetup(strategyName, setupName, w, r)
+	case "close-position":
+		closePosition(strategyName, setupName, w, r)
 	default:
 		http.Error(w, "Unknown action", http.StatusNotFound)
 	}
@@ -391,7 +399,7 @@ func newStrategyHandler(w http.ResponseWriter, r *http.Request) {
 	contractIdString := r.FormValue("contract_id")
 	timeframe := r.FormValue("timeframe")
 	schedule := r.FormValue("schedule")
-	additionalData := r.FormValue("additionalData")
+	additionalData := r.FormValue("otherMarketData")
 
 	contractId, err := strconv.Atoi(contractIdString)
 	if err != nil {
@@ -413,21 +421,24 @@ func newStrategyHandler(w http.ResponseWriter, r *http.Request) {
 		defer file.Close()
 
 		// Create a local directory (inside container) to store the upload.
-		uploadDir := "/app/strategies"
+		uploadDir := "C:/Users/Jon/Projects/pyquant/src/scheduler/strategies"
 		// if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
 		// Check if local directory exists - it should
 		if _, err := exists(uploadDir); err != nil {
 			http.Error(w, "Unable to find directory", http.StatusInternalServerError)
 			return
 		}
-		// 	http.Error(w, "Unable to create upload directory", http.StatusInternalServerError)
-		// 	return
-		// }  if not make it.
+		log.Printf("[INFO] Found directory: %s\n", uploadDir)
 
 		// Build a full path
 		filePath := filepath.Join(uploadDir, handler.Filename)
+		log.Printf("[INFO] Saving file to: %s\n", filePath)
+		// Create the file on disk
 		dst, err := os.Create(filePath)
+		log.Println("[INFO] Destination:", dst)
+
 		if err != nil {
+			log.Println("[ERROR] Unable to create file:", err)
 			http.Error(w, "Unable to create file", http.StatusInternalServerError)
 			return
 		}
@@ -646,6 +657,98 @@ func proxyContractId(w http.ResponseWriter, r *http.Request) {
 	// Copy response body
 	io.Copy(w, resp.Body)
 	fmt.Println(resp.Body)
+}
+
+// -----------------------------------------------------------------
+// gRPC Client Functions
+// -----------------------------------------------------------------
+
+// createTradeServiceClient creates a gRPC client to communicate with the backend service
+func createTradeServiceClient() (pb.TradeServiceClient, *grpc.ClientConn, error) {
+	// Determine the URL based on environment
+	fmt.Println(os.Getenv("ENVIRONMENT"))
+	var serverAddr string
+	if os.Getenv("ENVIRONMENT") == "production" || os.Getenv("ENVIRONMENT") == "docker" {
+		serverAddr = "backend:50051"
+	} else {
+		serverAddr = "localhost:50051"
+	}
+
+	fmt.Println("Connecting to backend at: ", serverAddr)
+	// Create a connection to the gRPC server
+	conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to connect to backend: %v", err)
+	}
+	fmt.Println("Connected to backend")
+	// Create a client using the connection
+	client := pb.NewTradeServiceClient(conn)
+	return client, conn, nil
+}
+
+// closePosition handles the close-position endpoint
+func closePosition(strategyName, setupName string, w http.ResponseWriter, r *http.Request) {
+	// 1) Find the position in the positions map
+	// positionId := fmt.Sprintf("%s-%s", strategyName, setupName)
+	position, ok := positions[setupName]
+	if !ok {
+		http.Error(w, "Position not found", http.StatusNotFound)
+		return
+	}
+
+	// 2) Check if there's an active position to close
+	if position.Quantity == 0 {
+		http.Error(w, "No active position to close", http.StatusBadRequest)
+		return
+	}
+
+	// 3) Determine the side for the close order (opposite of current position)
+	side := "SELL"
+	if position.Quantity < 0 {
+		side = "BUY"
+	}
+
+	// 4) Create a gRPC client to communicate with the backend
+	client, conn, err := createTradeServiceClient()
+	if err != nil {
+		http.Error(w, "Failed to connect to backend: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer conn.Close()
+
+	// 5) Create a trade message
+	trade := &pb.Trade{
+		StrategyName: strategyName,
+		ContractId:   int32(position.ContractId),
+		Exchange:     position.Exchange,
+		Symbol:       position.Symbol,
+		Side:         side,
+		Quantity:     strconv.Itoa(abs(position.Quantity)),
+		OrderType:    "MKT", // Use market order for closing positions
+		Broker:       "IB",  // Default broker
+	}
+
+	// 6) Send the trade to the backend service
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	resp, err := client.SendTrade(ctx, trade)
+	if err != nil {
+		http.Error(w, "Failed to send trade to backend: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// 7) Return success response
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": resp.Status})
+}
+
+// abs returns the absolute value of an integer
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
 }
 
 // -----------------------------------------------------------------

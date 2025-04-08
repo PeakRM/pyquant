@@ -8,8 +8,10 @@ type Trade struct {
 	ContractID   int         `json:"contract_id"`
 	Exchange     string      `json:"exchange"`
 	Symbol       string      `json:"symbol"`
-	Side         string      `json:"side"`     // Literal['BUY', 'SELL', 'HOLD']
-	Quantity     interface{} `json:"quantity"` // Can be int or float
+	Side         string      `json:"side"`       // Literal['BUY', 'SELL', 'HOLD']
+	Quantity     interface{} `json:"quantity"`   // Can be int or float
+	OrderType    string      `json:"order_type"` // Literal['MKT', 'LMT']
+	Broker       string      `json:"broker"`     // Literal['IB', 'TDA', etc.]
 }
 
 type Position struct {

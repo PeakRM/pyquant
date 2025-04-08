@@ -8,6 +8,7 @@ services:
     ports:
       - "50051:50051"
     environment:
+      - ENVIRONMENT=${ENVIRONMENT}
       - SHARED_PATH=/shared
       - TZ=America/New_York
     volumes:
@@ -22,6 +23,7 @@ services:
     ports:
       - "8000:8000"
     environment:
+      - ENVIRONMENT=${ENVIRONMENT}
       - SHARED_PATH=/shared
       - IB_HOST=ibkr
       - IB_PORT=${IB_PORT}
@@ -43,6 +45,7 @@ services:
     depends_on:
       - broker_api
     environment:
+      - ENVIRONMENT=${ENVIRONMENT}
       - SHARED_PATH=/shared 
       - TZ=America/New_York
     volumes:
@@ -59,6 +62,7 @@ services:
     ulimits:
       nofile: 10000
     environment:
+      ENVIRONMENT: ${ENVIRONMENT}
       USERNAME: ${USERNAME}
       PASSWORD: ${PASSWORD}
       TZ: America/New_York
@@ -67,7 +71,7 @@ services:
       # Allow API connections
       IBC_ReadOnlyApi: no
       # Optional: Set trading mode (paper/live)
-      IBC_TradingMode: live
+      IBC_TradingMode: paper
       IBC_AcceptIncomingConnectionAction: accept
       IBC_AcceptNonBrokerageAccountWarning: yes
     networks:

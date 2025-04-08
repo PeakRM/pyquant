@@ -45,7 +45,7 @@ class BrokerInterface(ABC):
 
     @abstractmethod
     async def get_historical_data(
-        self, 
+        self,
         contract: Contract,
         start_time: datetime,
         end_time: datetime,
@@ -81,14 +81,13 @@ class IBKRBroker(BrokerInterface):
             self._connected = False
         return True
 
-    def _convert_contract(self, contract: Optional[Contract]=None, contract_id:Optional[int]=None,exchange:Optional[str]=None) -> ib_async.Contract:
+    def _convert_contract(self, contract: Optional[Contract]=None, contract_id:Optional[int]=None, exchange:Optional[str]=None) -> ib_async.Contract:
         if contract is None or contract.contract_type=="":
             try:
                 return ib_async.Contract(conId=contract_id, exchange=exchange)
             except Exception:
                 raise ValueError(f"You did not pass the correct parameters: \n\t{contract}\n\t{contract_id}\n\t{exchange}")
-
-
+            
         if contract.contract_type == ContractType.STOCK:
             return ib_async.Stock(contract.symbol, contract.exchange or "SMART", contract.currency)
         elif contract.contract_type == ContractType.FUTURE:
@@ -105,6 +104,7 @@ class IBKRBroker(BrokerInterface):
             await self.ib.qualifyContractsAsync(ib_contract)
             tickers = self.ib.reqMktData(ib_contract, snapshot=True)
             self.ib.sleep(1)
+            print(tickers)
             return Quote(
                 # contract=contract,
                 symbol=contract.symbol,
@@ -116,7 +116,7 @@ class IBKRBroker(BrokerInterface):
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to get quote: {str(e)}")
 
-    async def get_quote_by_contract_id(self,exchange:str, contract_id:int) -> Quote:
+    async def get_quote_by_contract_id(self, exchange:str, contract_id:int) -> Quote:
         await self.connect()
         ib_contract = ib_async.Contract(conId=contract_id, exchange=exchange)
         
@@ -124,14 +124,17 @@ class IBKRBroker(BrokerInterface):
             await self.ib.qualifyContractsAsync(ib_contract)
             tickers = self.ib.reqMktData(ib_contract, snapshot=True)
             self.ib.sleep(1)
-
-            return Quote(
+            print(tickers.last, type(tickers.last))
+            quote = Quote(
                 symbol=ib_contract.symbol,
                 bid=tickers.bid,
                 ask=tickers.ask,
-                last=tickers.last,
+                last=0. if tickers.last== 'nan' else tickers.last,
                 timestamp=datetime.now()
             )
+            print("Quote: ", quote )
+
+            return quote
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to get quote: {str(e)}")
   
@@ -152,7 +155,7 @@ class IBKRBroker(BrokerInterface):
                 )
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to get fills: {str(e)}")
-            
+
         return fills
     
     async def get_trades(self) -> List[Trade]:
@@ -195,14 +198,22 @@ class IBKRBroker(BrokerInterface):
         
         try:
             await self.ib.qualifyContractsAsync(ib_contract)
-            
-            ib_order = ib_async.LimitOrder(
-                action="BUY" if order.trade.side == OrderSide.BUY else "SELL",
-                totalQuantity=order.trade.quantity,
-                # orderType="MKT" if order.order_type == OrderType.MARKET else "LMT",
-                # lmtPrice=order.limit_price if order.order_type == OrderType.LIMIT else None
-                lmtPrice=order.price)
-            
+
+            # Determine order type
+            order_type = order.trade.order_type #, 'order_type', 'LMT')  # Default to LMT if not specified
+
+            if order_type == 'MKT':
+                ib_order = ib_async.MarketOrder(
+                    action="BUY" if order.trade.side == OrderSide.BUY else "SELL",
+                    totalQuantity=order.trade.quantity
+                )
+            else:  # Default to LimitOrder
+                ib_order = ib_async.LimitOrder(
+                    action="BUY" if order.trade.side == OrderSide.BUY else "SELL",
+                    totalQuantity=order.trade.quantity,
+                    lmtPrice=order.price
+                )
+
             trade = self.ib.placeOrder(ib_contract, ib_order)
             return str(trade.order.orderId)
             
@@ -379,7 +390,7 @@ class TestBroker(BrokerInterface):
                 "base": base_price,
                 "last_update": datetime.now()
             }
-        
+
         # Update price with random walk
         elapsed = (datetime.now() - self._prices[symbol]["last_update"]).total_seconds()
         if elapsed > 1:  # Update price if more than 1 second has passed
@@ -478,7 +489,7 @@ class TestBroker(BrokerInterface):
         await self.connect()
         if not self._connected:
             raise HTTPException(status_code=500, detail="Not connected")
-        
+
         # Parse bar size to determine number of bars
         bar_seconds = {
             "1 min": 60,
@@ -523,7 +534,7 @@ class TestBroker(BrokerInterface):
         await self.connect()
         if not self._connected:
             raise HTTPException(status_code=500, detail="Not connected")
-        
+
         # Simulate contract validation with basic rules
         if contract.contract_type == ContractType.STOCK:
             return bool(re.match(r'^[A-Z]{1,5}$', contract.symbol))
@@ -541,14 +552,14 @@ class TestBroker(BrokerInterface):
         alphabet = list("_abcdefghijklmnopqrstuvwzyz0123456789")
         output = int("".join([str(alphabet.index(c)) for c in full_string.lower()]))
         return output
-        
+
     async def get_current_bar_open(self, contract_id:int, exchange:str) -> float:
         return 300.0
 
 # Update BrokerFactory to include TestBroker
 class BrokerFactory:
     _brokers: Dict[str, BrokerInterface] = {}
-    
+
     @classmethod
     def get_broker(cls, broker_type: str) -> BrokerInterface:
         if broker_type not in cls._brokers:

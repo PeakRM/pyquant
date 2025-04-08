@@ -39,6 +39,8 @@ type TradeInstruction struct {
 	Symbol       string `json:"symbol"`
 	Side         string `json:"side"`
 	Quantity     int    `json:"quantity"`
+	OrderType    string `json:"order_type"` // MKT, LMT
+	Broker       string `json:"broker"`     // IB, TDA, etc.
 }
 
 type Order struct {
@@ -80,12 +82,22 @@ func (s *server) SendTrade(ctx context.Context, trade *pb.Trade) (*pb.TradeRespo
 	return &pb.TradeResponse{Status: "Trade received and processing"}, nil
 }
 
-// Function to send a GET request to localhost:8081/api/[contract_id] and retrieve the last price
-func fetchPriceQuote(contractID int32, exchange string) (Quote, error) {
-	// url := fmt.Sprintf("http://127.0.0.1:8000/quoteByConId?conId=%d&exchange=%s", contractID, exchange) //local dev test_api
-	// url := fmt.Sprintf("http://broker_api:8000/quoteByConId?conId=%d&exchange=%s", contractID, exchange) // docker test test_api
-	// url := fmt.Sprintf("http://127.0.0.1:8000/api/IB/quote/%s/%d", exchange, contractID) //local dev broker_api
-	url := fmt.Sprintf("http://broker_api:8000/api/IB/quote/%s/%d", exchange, contractID) //docker dev broker_api
+// Function to send a GET request to retrieve the last price
+func fetchPriceQuote(contractID int32, exchange string, broker string) (Quote, error) {
+	// Default to IB if broker is not specified
+	if broker == "" {
+		broker = "IB"
+	}
+
+	// Determine the URL based on environment
+	var baseURL string
+	if os.Getenv("ENVIRONMENT") == "production" || os.Getenv("ENVIRONMENT") == "docker" {
+		baseURL = "http://broker_api:8000"
+	} else {
+		baseURL = "http://127.0.0.1:8000"
+	}
+
+	url := fmt.Sprintf("%s/api/%s/quote/%s/%d", baseURL, broker, exchange, contractID)
 
 	resp, err := http.Get(url)
 	if err != nil {
@@ -115,11 +127,22 @@ func transmitOrder(order Order, testTrade bool) (int, error) {
 		fmt.Println("Test Trade --> ")
 		return rand.Intn(1000), nil
 	}
-	// url := "http://127.0.0.1:8000/placeLimitOrder?broker=IB"
-	// url := "http://broker_api:8000/placeLimitOrder?broker=IB"
 
-	// url := "http://127.0.0.1:8000/api/IB/order"
-	url := "http://broker_api:8000/api/IB/order"
+	// Use the broker from the order, default to IB if not specified
+	broker := order.TradeInstruction.Broker
+	if broker == "" {
+		broker = "IB"
+	}
+
+	// Determine the URL based on environment
+	var baseURL string
+	if os.Getenv("ENVIRONMENT") == "production" || os.Getenv("ENVIRONMENT") == "docker" {
+		baseURL = "http://broker_api:8000"
+	} else {
+		baseURL = "http://127.0.0.1:8000"
+	}
+
+	url := fmt.Sprintf("%s/api/%s/order", baseURL, broker)
 	orderJSON, err := json.Marshal(order)
 	if err != nil {
 		fmt.Println("Error marshaling order to JSON:", err)
@@ -192,8 +215,13 @@ func processNewTrades(workerId int) {
 			}
 		}
 
+		// Get broker from trade or use default
+		broker := "IB" // Default broker
+
+		// In the future, when protobuf files are regenerated, this will come from trade.Broker
+
 		// Fetch price quote
-		quote, err := fetchPriceQuote(trade.ContractId, trade.Exchange)
+		quote, err := fetchPriceQuote(trade.ContractId, trade.Exchange, broker)
 		if err != nil {
 			log.Printf("%sFailed to fetch price for symbol %s: %v", workerInfo, trade.Symbol, err)
 			continue
@@ -208,7 +236,21 @@ func processNewTrades(workerId int) {
 			lmtPrice = quote.Ask
 		}
 
-		// Create order
+		// Get order type from trade or use default
+		orderType := "LMT" // Default to limit order
+		if trade.OrderType != "" {
+			orderType = trade.OrderType
+		}
+
+		// If it's a market order, we don't need to fetch a price quote
+		if orderType == "MKT" {
+			lmtPrice = 0.0 // Price is not used for market orders
+		}
+
+		// Use the broker we already defined above
+
+		// In the future, when protobuf files are regenerated, these will come from trade.OrderType and trade.Broker
+
 		order := Order{
 			TradeInstruction: TradeInstruction{
 				StrategyName: trade.StrategyName,
@@ -217,6 +259,8 @@ func processNewTrades(workerId int) {
 				Symbol:       trade.Symbol,
 				Side:         trade.Side,
 				Quantity:     quantity,
+				OrderType:    orderType,
+				Broker:       broker,
 			},
 			PriceQuote: lmtPrice,
 			Timestamp:  time.Now(),

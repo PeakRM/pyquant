@@ -20,6 +20,7 @@ COPY scheduler.go .
 RUN go mod tidy
 COPY static ./static
 COPY strategies ./strategies
+COPY tradepb ./tradepb
 RUN go build -o /scheduler scheduler.go
 
 # Stage 4: Final image

@@ -26,7 +26,7 @@ if _version_not_supported:
 
 
 class TradeServiceStub(object):
-    """The gRPC service
+    """The TradeService definition
     """
 
     def __init__(self, channel):
@@ -43,7 +43,7 @@ class TradeServiceStub(object):
 
 
 class TradeServiceServicer(object):
-    """The gRPC service
+    """The TradeService definition
     """
 
     def SendTrade(self, request, context):
@@ -69,7 +69,7 @@ def add_TradeServiceServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class TradeService(object):
-    """The gRPC service
+    """The TradeService definition
     """
 
     @staticmethod

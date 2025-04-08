@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package trade;
+
+option go_package = "scheduler/tradepb";
+
+// The Trade message
+message Trade {
+  string strategy_name = 1;
+  int32 contract_id = 2;
+  string exchange = 3;
+  string symbol = 4;
+  string side = 5;         // BUY, SELL, HOLD
+  string quantity = 6;     // Serialize as a string for flexibility
+  string order_type = 7;   // MKT, LMT
+  string broker = 8;       // IB, TDA, etc.
+}
+
+// The response message
+message TradeResponse {
+  string status = 1;
+}
+
+// The TradeService definition
+service TradeService {
+  rpc SendTrade(Trade) returns (TradeResponse);
+}

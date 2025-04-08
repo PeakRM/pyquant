@@ -7,9 +7,9 @@ from utils.definitions import Trade as TradeInstruction
 
 def send_trade(trade: TradeInstruction) -> None:
     # Connect to the server
-    # channel = grpc.insecure_channel('localhost:50051') # for local development
+    channel = grpc.insecure_channel('localhost:50051') # for local development
     # try:
-    channel = grpc.insecure_channel('backend:50051') # for docker container  with service "backend"
+    # channel = grpc.insecure_channel('backend:50051') # for docker container  with service "backend"
     # except Exception:
         # channel = grpc.insecure_channel('localhost:50051') # for local development
     stub = trade_pb2_grpc.TradeServiceStub(channel)
@@ -21,7 +21,9 @@ def send_trade(trade: TradeInstruction) -> None:
         exchange=trade.exchange,
         symbol=trade.symbol,
         side=trade.side,
-        quantity=str(trade.quantity) # Serialize as a string
+        quantity=str(trade.quantity), # Serialize as a string
+        order_type=trade.order_type,  # Add order type (MKT, LMT)
+        broker=trade.broker           # Add broker (IB, TDA, etc.)
     )
 
     # Send the Trade message
