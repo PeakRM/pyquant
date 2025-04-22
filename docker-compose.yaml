@@ -1,4 +1,4 @@
-version: '3.8'
+version: '3.9'
 
 services:
   backend:
@@ -11,10 +11,18 @@ services:
       - ENVIRONMENT=${ENVIRONMENT}
       - SHARED_PATH=/shared
       - TZ=America/New_York
+      - DB_HOST=postgres
+      - DB_USER=tradeuser
+      - DB_PASSWORD=tradepass
+      - DB_NAME=tradedb
+      - DB_PORT=5432
     volumes:
       - ./shared_files:/shared
     networks:
       - project_network
+    depends_on:
+      - postgres
+    restart: unless-stopped
 
   broker_api:
     build:
@@ -35,6 +43,7 @@ services:
       - project_network
     depends_on:
       - ibkr
+    restart: unless-stopped
 
   scheduler:
     build:
@@ -44,14 +53,21 @@ services:
       - "8080:8080"
     depends_on:
       - broker_api
+      - postgres
     environment:
       - ENVIRONMENT=${ENVIRONMENT}
       - SHARED_PATH=/shared 
       - TZ=America/New_York
+      - DB_HOST=postgres
+      - DB_USER=tradeuser
+      - DB_PASSWORD=tradepass
+      - DB_NAME=tradedb
+      - DB_PORT=5432
     volumes:
       - ./shared_files:/shared      
     networks:
       - project_network
+    restart: unless-stopped
 
   ibkr:
     image: ghcr.io/extrange/ibkr:stable
@@ -78,6 +94,24 @@ services:
       - project_network
     restart: unless-stopped
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=tradeuser
+      - POSTGRES_PASSWORD=tradepass
+      - POSTGRES_DB=tradedb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - project_network
+    restart: unless-stopped
+
 networks:
   project_network:
     driver: bridge
+
+volumes:
+  postgres_data:

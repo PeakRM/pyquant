@@ -201,13 +201,14 @@ export const AddSetupModal = ({ isOpen, onClose, onSubmit, strategyName }) => {
               id="addTimeframe" 
               name="timeframe"
             >
-              <option value="1min">1 Minute</option>
-              <option value="5min">5 Minutes</option>
-              <option value="15min">15 Minutes</option>
-              <option value="30min">30 Minutes</option>
-              <option value="1hour">1 Hour</option>
-              <option value="4hour">4 Hours</option>
-              <option value="1day">Daily</option>
+              <option value="30 sec">30 Seconds</option>
+              <option value="1 min">1 Minute</option>
+              <option value="5 min">5 Minutes</option>
+              <option value="15 min">15 Minutes</option>
+              <option value="30 min">30 Minutes</option>
+              <option value="1 hour">1 Hour</option>
+              <option value="4 hour">4 Hours</option>
+              <option value="1 day">Daily</option>
             </select>
           </div>
           
@@ -305,13 +306,14 @@ export const EditSetupModal = ({ isOpen, onClose, onSubmit, setup, strategyName 
               name="timeframe"
               defaultValue={setup.timeframe}
             >
-              <option value="1min">1 Minute</option>
-              <option value="5min">5 Minutes</option>
-              <option value="15min">15 Minutes</option>
-              <option value="30min">30 Minutes</option>
-              <option value="1hour">1 Hour</option>
-              <option value="4hour">4 Hours</option>
-              <option value="1day">Daily</option>
+              <option value="30 sec">30 Seconds</option>
+              <option value="1 min">1 Minute</option>
+              <option value="5 min">5 Minutes</option>
+              <option value="15 min">15 Minutes</option>
+              <option value="30 min">30 Minutes</option>
+              <option value="1 hour">1 Hour</option>
+              <option value="4 hour">4 Hours</option>
+              <option value="1 day">Daily</option>
             </select>
           </div>
           

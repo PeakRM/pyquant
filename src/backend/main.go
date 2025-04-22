@@ -13,7 +13,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"pytrader/database"
 	"pytrader/definitions"
+	"strings"
+
 	pb "pytrader/tradepb"
 	"strconv"
 	"sync"
@@ -72,12 +75,48 @@ func (m *MyError) Error() string {
 	return "Failed to get price."
 }
 
+// Add a struct to carry the trade along with its database ID
+type TradeWithID struct {
+	Trade   *pb.Trade
+	TradeID int64
+}
+
 // SendTrade implements the SendTrade RPC
 func (s *server) SendTrade(ctx context.Context, trade *pb.Trade) (*pb.TradeResponse, error) {
 	log.Printf("Received trade: %+v", trade)
 
+	// Convert quantity string to int
+	quantity, err := strconv.Atoi(trade.Quantity)
+	if err != nil {
+		log.Printf("Failed to convert quantity '%s' to int: %v", trade.Quantity, err)
+		return &pb.TradeResponse{Status: "Error: Invalid quantity"}, err
+	}
+
+	// Save trade instruction to database
+	tradeID, err := database.SaveTradeInstruction(
+		trade.StrategyName,
+		trade.ContractId,
+		trade.Exchange,
+		trade.Symbol,
+		trade.Side,
+		trade.OrderType,
+		trade.Broker,
+		quantity,
+	)
+
+	if err != nil {
+		log.Printf("Error saving trade instruction: %v", err)
+		// Continue processing anyway - we don't want to block the trade
+	}
+
+	// Store the trade ID for later use in the channel
+	tradeWithID := &TradeWithID{
+		Trade:   trade,
+		TradeID: tradeID,
+	}
+
 	// Send trade to the processing channel
-	tradeChannel <- trade
+	tradeChannel <- tradeWithID
 
 	return &pb.TradeResponse{Status: "Trade received and processing"}, nil
 }
@@ -190,12 +229,14 @@ func transmitOrder(order Order, testTrade bool) (int, error) {
 
 	return orderID, nil
 }
-
 func processNewTrades(workerId int) {
-	for trade := range tradeChannel {
+	for tradeWithID := range tradeChannel {
+		trade := tradeWithID.Trade
+		tradeID := tradeWithID.TradeID
+
 		workerInfo := fmt.Sprintf("Worker %d ==>", workerId)
 
-		// Create key for Order - #TODO - Add Timestamp
+		// Create key for Order
 		positionId := fmt.Sprintf("%s-%s", trade.StrategyName, trade.Symbol)
 
 		// deduplication
@@ -209,19 +250,14 @@ func processNewTrades(workerId int) {
 				continue
 			}
 
-			if current_pos.Status == "pending" {
+			if current_pos.Status == "Pending" {
 				fmt.Printf("%sPending order exists, trade skipped: %s - %s - %t \n", workerInfo, trade, i, ok)
 				continue
 			}
 		}
 
-		// Get broker from trade or use default
-		broker := "IB" // Default broker
-
-		// In the future, when protobuf files are regenerated, this will come from trade.Broker
-
 		// Fetch price quote
-		quote, err := fetchPriceQuote(trade.ContractId, trade.Exchange, broker)
+		quote, err := fetchPriceQuote(trade.ContractId, trade.Exchange, trade.Broker)
 		if err != nil {
 			log.Printf("%sFailed to fetch price for symbol %s: %v", workerInfo, trade.Symbol, err)
 			continue
@@ -236,21 +272,7 @@ func processNewTrades(workerId int) {
 			lmtPrice = quote.Ask
 		}
 
-		// Get order type from trade or use default
-		orderType := "LMT" // Default to limit order
-		if trade.OrderType != "" {
-			orderType = trade.OrderType
-		}
-
-		// If it's a market order, we don't need to fetch a price quote
-		if orderType == "MKT" {
-			lmtPrice = 0.0 // Price is not used for market orders
-		}
-
-		// Use the broker we already defined above
-
-		// In the future, when protobuf files are regenerated, these will come from trade.OrderType and trade.Broker
-
+		// Create order
 		order := Order{
 			TradeInstruction: TradeInstruction{
 				StrategyName: trade.StrategyName,
@@ -259,8 +281,8 @@ func processNewTrades(workerId int) {
 				Symbol:       trade.Symbol,
 				Side:         trade.Side,
 				Quantity:     quantity,
-				OrderType:    orderType,
-				Broker:       broker,
+				OrderType:    trade.OrderType,
+				Broker:       trade.Broker,
 			},
 			PriceQuote: lmtPrice,
 			Timestamp:  time.Now(),
@@ -269,9 +291,18 @@ func processNewTrades(workerId int) {
 		// Send order
 		orderId, err := transmitOrder(order, false)
 		if err != nil {
-			log.Printf("%sFailed to subimt order for strategy-symbol %s-%s: %v", workerInfo, trade.StrategyName, trade.Symbol, err)
+			log.Printf("%sFailed to submit order for strategy-symbol %s-%s: %v", workerInfo, trade.StrategyName, trade.Symbol, err)
 			continue
 		}
+
+		// Update the trade record with the broker order ID
+		if tradeID > 0 {
+			err = database.UpdateTradeToSubmitted(tradeID, orderId, lmtPrice)
+			if err != nil {
+				log.Printf("%sWarning: Failed to update trade status in database: %v", workerInfo, err)
+			}
+		}
+
 		// Save Order Id received from API call to broker
 		orderResponse := OrderResponse{
 			Order:   order,
@@ -280,7 +311,6 @@ func processNewTrades(workerId int) {
 		updatePositionsToPending(orderResponse)
 
 		go monitorFill(orderResponse)
-
 	}
 }
 
@@ -289,15 +319,10 @@ func startWorkerPool(numWorkers int, f poolFunction) {
 		go f(i)
 	}
 }
-
 func monitorFill(orderResp OrderResponse) {
 	fmt.Println("Monitoring fill")
 	isFilled := false
 	for !isFilled {
-
-		// url := fmt.Sprintf("http://127.0.0.1:8000/fills?order_id=%d", orderResp.OrderId)
-		// url := fmt.Sprintf("http://broker_api:8000/fills?Id=%d", orderResp.OrderId)
-		// url := "http://127.0.0.1:8000/api/IB/trades"
 		url := "http://broker_api:8000/api/IB/trades"
 		resp, err := http.Get(url)
 		if err != nil {
@@ -306,7 +331,7 @@ func monitorFill(orderResp OrderResponse) {
 		}
 		defer resp.Body.Close()
 
-		// Parse the response body to extract the price
+		// Parse the response body
 		var response []Trade
 		err = json.NewDecoder(resp.Body).Decode(&response)
 		if err != nil {
@@ -327,6 +352,17 @@ func monitorFill(orderResp OrderResponse) {
 			if orderResp.Order.TradeInstruction.Side == "SELL" {
 				direction = -1.0
 			}
+
+			// Update trade status in database
+			err := database.UpdateTradeStatus(
+				orderResp.OrderId,
+				strings.ToLower(trade.Status), // Using lowercase to match our db convention
+				trade.Price,
+			)
+			if err != nil {
+				log.Printf("Warning: Failed to update trade status in database: %v", err)
+			}
+
 			updatePositionsFromResponse(orderResp, trade.Status, trade.Price,
 				int(direction*math.Abs(float64(trade.Quantity))))
 			fmt.Printf("Order %s: %d", trade.Status, orderResp.OrderId)
@@ -351,7 +387,7 @@ func updatePositionsFromResponse(orderResp OrderResponse, status string, costBas
 
 	}
 	if quantity == 0.0 || status == "Cancelled" {
-		status = "closed"
+		status = "Closed"
 	}
 
 	positions.Store(positionId, definitions.Position{
@@ -388,14 +424,14 @@ func updatePositionsToPending(orderResp OrderResponse) {
 			CostBasis:  0.0,
 			Datetime:   time.Now().String(),
 			ContractID: int(orderResp.Order.TradeInstruction.ContractId),
-			Status:     "pending",
+			Status:     "Pending",
 		})
 	} else {
 		p, _ := p.(definitions.Position)
 		if !ok {
 			fmt.Println("Could not assert Position type on p:", p)
 		}
-		p.Status = "pending"
+		p.Status = "Pending"
 		positions.Store(positionId, p)
 	}
 	shared_positions := GetSharedFilePath("positions.json")
@@ -476,12 +512,18 @@ func SyncMapToJSONFile(m *sync.Map, filename string) error {
 	return nil
 }
 
-var tradeChannel = make(chan *pb.Trade, 100) // Buffered channel for trades
+var tradeChannel = make(chan *TradeWithID, 100) // Buffered channel for trades
 type poolFunction func(int)
 
 var positions sync.Map //
 
 func main() {
+	// Initialize database connection
+	err := database.Initialize()
+	if err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
+	}
+	defer database.Close()
 	// Clear the original map to demonstrate loading from file
 	shared_positions := GetSharedFilePath("positions.json")
 

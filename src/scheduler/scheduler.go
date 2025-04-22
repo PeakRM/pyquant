@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"time"
 
+	"scheduler/handlers"
 	pb "scheduler/tradepb"
 
 	"google.golang.org/grpc"
@@ -85,6 +86,13 @@ func main() {
 	// Start monitoring every 30 seconds
 	monitorScripts(30 * time.Second)
 
+	// Initialize the database connection
+	err := handlers.InitDB()
+	if err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
+	}
+	defer handlers.CloseDB()
+
 	// 2. Handle endpoints
 	corsMiddleware := func(handler http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -102,6 +110,7 @@ func main() {
 	http.Handle("/strategies", corsMiddleware(http.HandlerFunc(handleListStrategies)))
 	http.Handle("/strategies/", corsMiddleware(http.HandlerFunc(handleStrategyActions)))           // e.g. POST /strategies/{strategyName}/{setupName}/toggle
 	http.Handle("/streamPositions", corsMiddleware(http.HandlerFunc(positionStreamHandler)))       // handle positions
+	http.Handle("/streamTrades", corsMiddleware(http.HandlerFunc(handlers.SSETradesHandler)))      // handle positions
 	http.Handle("/refreshStrategyConfig", corsMiddleware(http.HandlerFunc(refreshStrategyConfig))) // tells front end refresh strategies due to backend changes
 	http.Handle("/uploadNewStrategy", corsMiddleware(http.HandlerFunc(newStrategyHandler)))
 	http.Handle("/updateSetup", corsMiddleware(http.HandlerFunc(updateSetup)))
@@ -116,6 +125,13 @@ func main() {
 	// Start server
 	log.Println("Server running on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
+
+	// Set up graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	log.Println("Shutting down server...")
 }
 
 // -----------------------------------------------------------------
@@ -233,7 +249,7 @@ func positionStreamHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
 	for {

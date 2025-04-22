@@ -25,29 +25,29 @@ const TradingActivityComponent = ({
   }, [positions, trades, isCollapsed, activeTab]);
   
   return (
-    <div className="bg-white rounded-lg shadow-md overflow-hidden mb-6">
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-6">
       {/* Header with tabs */}
       <div 
-        className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center"
+        className="p-3 flex items-center justify-between cursor-pointer bg-gray-50 border-b border-gray-200"
         onClick={() => setIsCollapsed(!isCollapsed)}
       >
-        <div>
-          <h2 className="text-xl font-semibold text-gray-800">Trading Activity</h2>
-          <p className="text-sm text-gray-500">
+        <div className="flex items-center">
+        <h2 className="text-lg font-medium text-gray-700">Trading Activity</h2>
+        <span className="ml-2 text-gray-500 text-sm">
             {activeTab === 'positions' 
               ? `${Object.keys(positions).length} active positions` 
               : 'Last 24 hours'}
-          </p>
+          </span>
         </div>
         
         <div className="flex items-center">
           {/* Tab Toggle */}
-          <div className="bg-gray-50 rounded-full p-1 flex mr-4">
+          <div className="bg-gray-100 rounded-full p-1 flex mr-4">
             <button 
-              className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+              className={`px-3 py-1 text-xs rounded-full transition-colors ${
                 activeTab === 'positions' 
                   ? 'bg-blue-600 text-white' 
-                  : 'text-gray-300 hover:text-black'
+                  : 'text-gray-700 hover:text-gray-900'
               }`}
               onClick={(e) => {
                 e.stopPropagation();
@@ -57,10 +57,10 @@ const TradingActivityComponent = ({
               Positions
             </button>
             <button 
-              className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+              className={`px-3 py-1 text-xs rounded-full transition-colors ${
                 activeTab === 'trades' 
                   ? 'bg-blue-600 text-white' 
-                  : 'text-gray-300 hover:text-black'
+                  : 'text-gray-700 hover:text-gray-900'
               }`}
               onClick={(e) => {
                 e.stopPropagation();
@@ -72,8 +72,8 @@ const TradingActivityComponent = ({
           </div>
           
           {isCollapsed ? 
-            <ChevronDown size={18} className="text-gray-400" /> : 
-            <ChevronUp size={18} className="text-gray-400" />}
+            <ChevronDown size={18} className="text-gray-500" /> : 
+            <ChevronUp size={18} className="text-gray-500" />}
         </div>
       </div>
       
@@ -101,47 +101,47 @@ const TradingActivityComponent = ({
  */
 const PositionsTable = ({ positions }) => {
   return (
-    <table className="min-w-full divide-y divide-gray-200 text-sm">
+    <table className="w-full text-sm">
       <thead className="bg-gray-50 text-left text-xs uppercase">
-        <tr>
-          <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Symbol</th>
-          <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Pos</th>
-          <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Entry</th>
+      <tr>
+          <th className="px-3 py-2 text-gray-500 font-medium">Market</th>
+          <th className="px-3 py-2 text-gray-500 font-medium">Pos</th>
+          <th className="px-3 py-2 text-gray-500 font-medium">Avg Entry</th>
           {/* <th className="px-3 py-2">Current</th> */}
-          <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Unrealized P&L</th>
+          <th className="px-3 py-2 text-gray-500 font-medium">Unrealized P&L</th>
           {/* <th className="px-3 py-2">Realized P&L</th> */}
-          <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Value</th>
-          <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Setup</th>
+          <th className="px-3 py-2 text-gray-500 font-medium">Value</th>
+          <th className="ppx-3 py-2 text-gray-500 font-medium">Setup</th>
         </tr>
       </thead>
-      <tbody className="bg-white divide-y divide-gray-200">
+      <tbody className="divide-y divide-gray-200">
         {Object.entries(positions).map(([setupName, position], index) => (
           <tr 
             key={setupName} 
-            className= {index % 2 === 1 ? 'bg-gray-50' : 'bg-white'}
+            className= {index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}
           >
-            <td className="px-3 py-2 font-medium text-center">{position.symbol}</td>
+            <td className="px-3 py-2 font-medium text-gray-700">{position.symbol}</td>
             <td className="px-3 py-2 text-center" >
-              <span className={position.quantity > 0 ? 'text-green-500' : position.quantity < 0 ? 'text-red-500' : 'text-gray-500'}>
+              <span className={position.quantity > 0 ? 'text-green-600' : position.quantity < 0 ? 'text-red-600' : 'text-gray-500'}>
                 {position.quantity > 0 ? '+' : ''}{position.quantity}
               </span>
             </td>
-            <td className="px-3 py-2 text-gray-500 text-center">{position.cost_basis?.toFixed(2)}</td>
-            {/* <td className="px-3 py-2 text-gray-300">{position.current_price?.toFixed(2)}</td> */}
+            <td className="px-3 py-2 text-gray-700 text-center">{position.cost_basis?.toFixed(2)}</td>
+            {/* <td className="px-3 py-2 text-gray-700 text-center">{position.current_price?.toFixed(2)}</td> */}
             <td className="px-3 py-2 text-center">
-              <span className={position.unrealized >= 0 ? 'text-green-500' : 'text-red-500'}>
+              <span className={position.unrealized >= 0 ? 'text-green-600' : 'text-red-600'}>
                 ${position.unrealized?.toFixed(2)}
               </span>
             </td>
             {/* <td className="px-3 py-2">
-              <span className={position.realized >= 0 ? 'text-green-500' : position.realized < 0 ? 'text-red-500' : 'text-gray-400'}>
+              <span className={position.realized >= 0 ? 'text-green-600' : position.realized < 0 ? 'text-red-600' : 'text-gray-500'}>
                 ${position.realized?.toFixed(2)}
               </span>
             </td> */}
-            <td className="px-3 py-2 text-gray-500 text-center" >${position.value?.toFixed(2)}</td>
+            <td className="px-3 py-2 text-gray-700 text-center" >${position.value?.toFixed(2)}</td>
             <td className="px-3 py-2 text-center">
               <div className="flex flex-wrap gap-1 text-center">
-                <span className="bg-blue-900 bg-opacity-30 text-blue-400 text-xs px-2 py-0.5 rounded-full text-center">
+                <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full text-center">
                   {setupName}
                 </span>
               </div>
@@ -165,7 +165,7 @@ const TradesTable = ({ trades }) => {
           <th className="px-3 py-2">Strategy</th>
           <th className="px-3 py-2">Market</th>
           <th className="px-3 py-2">Side</th>
-          <th className="px-3 py-2">Type</th>
+          {/* <th className="px-3 py-2">Type</th> */}
           <th className="px-3 py-2">Qty</th>
           <th className="px-3 py-2">Price</th>
           <th className="px-3 py-2">Status</th>
@@ -178,26 +178,26 @@ const TradesTable = ({ trades }) => {
             key={setupName} 
             className={index % 2 === 0 ? 'bg-gray-800' : 'bg-gray-750'}
           >
-            <td className="px-3 py-2 font-medium text-gray-300">{trade.id}</td>
-            <td className="px-3 py-2">{trade.strategy}</td>
-            <td className="px-3 py-2 text-gray-300">{trade.market}</td>
+            <td className="px-3 py-2 font-medium text-gray-300">{trade.broker_order_id}</td>
+            <td className="px-3 py-2">{trade.strategy_name}</td>
+            <td className="px-3 py-2 text-gray-300">{trade.exchange}:{trade.symbol}</td>
             <td className="px-3 py-2">
               <span className={trade.side === 'BUY' ? 'text-green-500' : 'text-red-500'}>
                 {trade.side}
               </span>
             </td>
-            <td className="px-3 py-2 text-gray-300">{trade.type}</td>
+            {/* <td className="px-3 py-2 text-gray-300">{trade.type}</td> */}
             <td className="px-3 py-2 text-gray-300">{trade.quantity}</td>
             <td className="px-3 py-2 text-gray-300">${trade.price.toFixed(2)}</td>
             <td className="px-3 py-2">
               <span className={`text-xs px-2 py-0.5 rounded-full
-                ${trade.status === 'Filled' ? 'bg-green-900 bg-opacity-30 text-green-400' : 
-                  trade.status === 'Cancelled' ? 'bg-red-900 bg-opacity-30 text-red-400' : 
+                ${trade.status.upperCase() === 'FILLED' ? 'bg-green-900 bg-opacity-30 text-green-400' : 
+                  trade.status.upperCase() === 'CANCELLED' ? 'bg-red-900 bg-opacity-30 text-red-400' : 
                   'bg-yellow-900 bg-opacity-30 text-yellow-400'}`}>
-                {trade.status}
+                {trade.status.upperCase()}
               </span>
             </td>
-            <td className="px-3 py-2 text-gray-300">{trade.timestamp}</td>
+            <td className="px-3 py-2 text-gray-300">{trade.updated_at}</td>
           </tr>
         ))}
       </tbody>

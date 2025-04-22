@@ -13,4 +13,10 @@ FROM debian:bookworm-slim
 WORKDIR /root/
 COPY --from=builder /app/backend /backend
 
+# Install PostgreSQL client libraries
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 CMD ["/backend"]

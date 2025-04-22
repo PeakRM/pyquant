@@ -33,6 +33,7 @@ export default function TradingDashboard() {
   // State management
   const [strategies, setStrategies] = useState({});
   const [positions, setPositions] = useState({});
+  const [trades, setTrades] = useState({});
   const [currentPrices, setCurrentPrices] = useState(new Map());
   const [isNewStrategyModalOpen, setIsNewStrategyModalOpen] = useState(false);
   const [isEditSetupModalOpen, setIsEditSetupModalOpen] = useState(false);
@@ -82,6 +83,13 @@ export default function TradingDashboard() {
 
       setCurrentPrices(priceMap);
       setPositions(newPositions);
+    };
+    
+    // Set up trade streaming
+    const tradeSource = new EventSource(`${SCHEDULER_API_BASE}/streamTrades`);
+    tradeSource.onmessage = (event) => {
+      const newTrades = JSON.parse(event.data);
+      setTrades(newTrades);
     };
 
     // Set up strategy config refresh streaming
@@ -371,7 +379,7 @@ export default function TradingDashboard() {
         {/* Trading Activity Component */}
         <TradingActivityComponent 
           positions={positions}
-          trades={sampleTrades}
+          trades={trades}
           initialTab="positions"
           initialCollapsed={false}
         />
