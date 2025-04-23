@@ -438,6 +438,11 @@ func newStrategyHandler(w http.ResponseWriter, r *http.Request) {
 
 		// Create a local directory (inside container) to store the upload.
 		uploadDir := "C:/Users/Jon/Projects/pyquant/src/scheduler/strategies"
+
+		if os.Getenv("ENVIRONMENT") == "production" || os.Getenv("ENVIRONMENT") == "docker" {
+			uploadDir = "/app/strategies"
+		}
+
 		// if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
 		// Check if local directory exists - it should
 		if _, err := exists(uploadDir); err != nil {
@@ -918,6 +923,7 @@ func startScript(scriptPath, strategyName, setupName string) error {
 	if err := cmd.Start(); err != nil {
 		return err
 	}
+	defer cmd.Wait()
 	fmt.Println("Running", scriptPath, setupName)
 
 	runningMu.Lock()

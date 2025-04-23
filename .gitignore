@@ -15,8 +15,9 @@ src/scheduler/strategies/__pycache__/trade_pb2_grpc.cpython-312.pyc
 src/scheduler/strategies/__pycache__/trade_pb2.cpython-312.pyc
 src/scheduler/strategies/__pycache__/definitions.cpython-312.pyc
 src/scheduler/strategies/VolatilityBreakout.py
+src/scheduler/strategies/TestStrategy.py
 src/scheduler/strategies/EOMBonds.py
-src/scheduler/strategies/logs
+src/scheduler/strategies/logs/*
 /other
 .ipynb_checkpoints/Hourly E-mini analysis (23-25)-checkpoint.ipynb
 .env
