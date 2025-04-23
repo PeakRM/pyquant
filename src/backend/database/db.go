@@ -66,7 +66,9 @@ func createTables() error {
 		exchange VARCHAR(50) NOT NULL,
 		symbol VARCHAR(50) NOT NULL,
 		side VARCHAR(10) NOT NULL,
-		quantity INTEGER NOT NULL,
+		quantity FLOAT NOT NULL,
+		order_type VARCHAR(10) NOT NULL,
+		broker VARCHAR(20) NOT NULL,
 		price FLOAT NOT NULL DEFAULT 0,
 		broker_order_id INTEGER NOT NULL DEFAULT 0,
 		trading_date VARCHAR(10) NOT NULL,
@@ -75,7 +77,7 @@ func createTables() error {
 		last_updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 	);
 
-	CREATE UNIQUE INDEX IF NOT EXISTS trades_broker_order_id_trading_date_idx 
+	CREATE UNIQUE INDEX IF NOT EXISTS trades_broker_order_id_trading_date_idx
 	ON trades (broker_order_id, trading_date)
 	WHERE broker_order_id > 0;
 	`)

@@ -7,13 +7,13 @@ import (
 )
 
 // SaveTradeInstruction stores a new trade instruction in the database
-func SaveTradeInstruction(strategyName string, contractID int32, exchange, symbol, side, orderType, broker string, quantity int) (int64, error) {
+func SaveTradeInstruction(strategyName string, contractID int32, exchange, symbol, side, orderType, broker string, quantity float64) (int64, error) {
 	query := `
 	INSERT INTO trades (
 		strategy_name, contract_id, exchange, symbol, side, quantity, order_type, broker,
 		trading_date, status, created_at, last_updated_at
 	)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 	RETURNING id
 	`
 
@@ -43,7 +43,7 @@ func SaveTradeInstruction(strategyName string, contractID int32, exchange, symbo
 // UpdateTradeToSubmitted updates a trade record to submitted status with broker order ID
 func UpdateTradeToSubmitted(id int64, brokerOrderID int, price float64) error {
 	query := `
-	UPDATE trades 
+	UPDATE trades
 	SET status = 'Submitted', broker_order_id = $1, price = $2, last_updated_at = $3
 	WHERE id = $4
 	`
@@ -60,7 +60,7 @@ func UpdateTradeStatus(brokerOrderID int, status string, filledPrice float64) er
 	tradingDate := time.Now().Format("2006-01-02")
 
 	query := `
-	UPDATE trades 
+	UPDATE trades
 	SET status = $1, last_updated_at = $2, price = CASE WHEN $1 = 'Filled' THEN $3 ELSE price END
 	WHERE broker_order_id = $4 AND trading_date = $5
 	`
@@ -86,7 +86,7 @@ func UpdateTradeStatus(brokerOrderID int, status string, filledPrice float64) er
 func GetPendingTrades() ([]Trade, error) {
 	query := `
 	SELECT id, strategy_name, contract_id, exchange, symbol, side, quantity,
-	       price, broker_order_id, trading_date, status, created_at, last_updated_at
+	       order_type, broker, price, broker_order_id, trading_date, status, created_at, last_updated_at
 	FROM trades
 	WHERE status IN ('Pending', 'Submitted')
 	ORDER BY created_at DESC
@@ -105,7 +105,7 @@ func GetPendingTrades() ([]Trade, error) {
 		err := rows.Scan(
 			&trade.ID, &trade.StrategyName, &trade.ContractID,
 			&trade.Exchange, &trade.Symbol, &trade.Side, &trade.Quantity,
-			&trade.Price, &trade.BrokerOrderID, &trade.TradingDate,
+			&trade.OrderType, &trade.Broker, &trade.Price, &trade.BrokerOrderID, &trade.TradingDate,
 			&trade.Status, &trade.CreatedAt, &trade.LastUpdatedAt,
 		)
 
@@ -127,7 +127,7 @@ func GetPendingTrades() ([]Trade, error) {
 func GetRecentTradesBySymbol(symbol string, limit int) ([]Trade, error) {
 	query := `
 	SELECT id, strategy_name, contract_id, exchange, symbol, side, quantity,
-	       price, broker_order_id, trading_date, status, created_at, last_updated_at
+	       order_type, broker, price, broker_order_id, trading_date, status, created_at, last_updated_at
 	FROM trades
 	WHERE symbol = $1
 	ORDER BY created_at DESC
@@ -147,7 +147,7 @@ func GetRecentTradesBySymbol(symbol string, limit int) ([]Trade, error) {
 		err := rows.Scan(
 			&trade.ID, &trade.StrategyName, &trade.ContractID,
 			&trade.Exchange, &trade.Symbol, &trade.Side, &trade.Quantity,
-			&trade.Price, &trade.BrokerOrderID, &trade.TradingDate,
+			&trade.OrderType, &trade.Broker, &trade.Price, &trade.BrokerOrderID, &trade.TradingDate,
 			&trade.Status, &trade.CreatedAt, &trade.LastUpdatedAt,
 		)
 
@@ -169,7 +169,7 @@ func GetRecentTradesBySymbol(symbol string, limit int) ([]Trade, error) {
 func GetTradesByStrategyAndDate(strategy string, startDate, endDate string) ([]Trade, error) {
 	query := `
 	SELECT id, strategy_name, contract_id, exchange, symbol, side, quantity,
-	       price, broker_order_id, trading_date, status, created_at, last_updated_at
+	       order_type, broker, price, broker_order_id, trading_date, status, created_at, last_updated_at
 	FROM trades
 	WHERE strategy_name = $1 AND trading_date BETWEEN $2 AND $3
 	ORDER BY created_at DESC
@@ -188,7 +188,7 @@ func GetTradesByStrategyAndDate(strategy string, startDate, endDate string) ([]T
 		err := rows.Scan(
 			&trade.ID, &trade.StrategyName, &trade.ContractID,
 			&trade.Exchange, &trade.Symbol, &trade.Side, &trade.Quantity,
-			&trade.Price, &trade.BrokerOrderID, &trade.TradingDate,
+			&trade.OrderType, &trade.Broker, &trade.Price, &trade.BrokerOrderID, &trade.TradingDate,
 			&trade.Status, &trade.CreatedAt, &trade.LastUpdatedAt,
 		)
 

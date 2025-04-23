@@ -41,7 +41,7 @@ type TradeInstruction struct {
 	Exchange     string `json:"exchange"`
 	Symbol       string `json:"symbol"`
 	Side         string `json:"side"`
-	Quantity     int    `json:"quantity"`
+	Quantity     float64    `json:"quantity"`
 	OrderType    string `json:"order_type"` // MKT, LMT
 	Broker       string `json:"broker"`     // IB, TDA, etc.
 }
@@ -85,10 +85,10 @@ type TradeWithID struct {
 func (s *server) SendTrade(ctx context.Context, trade *pb.Trade) (*pb.TradeResponse, error) {
 	log.Printf("Received trade: %+v", trade)
 
-	// Convert quantity string to int
-	quantity, err := strconv.Atoi(trade.Quantity)
+	// Convert quantity string to float64
+	quantity, err := strconv.ParseFloat(trade.Quantity, 64)
 	if err != nil {
-		log.Printf("Failed to convert quantity '%s' to int: %v", trade.Quantity, err)
+		log.Printf("Failed to convert quantity '%s' to float64: %v", trade.Quantity, err)
 		return &pb.TradeResponse{Status: "Error: Invalid quantity"}, err
 	}
 
@@ -262,9 +262,9 @@ func processNewTrades(workerId int) {
 			log.Printf("%sFailed to fetch price for symbol %s: %v", workerInfo, trade.Symbol, err)
 			continue
 		}
-		quantity, err := strconv.Atoi(trade.Quantity)
+		quantity, err := strconv.ParseFloat(trade.Quantity, 64)
 		if err != nil {
-			log.Printf("%sFailed to convert Quantity string to int for symbol %s: %v", workerInfo, trade.Quantity, err)
+			log.Printf("%sFailed to convert Quantity string to float64 for symbol %s: %v", workerInfo, trade.Quantity, err)
 			continue
 		}
 		lmtPrice := quote.Bid

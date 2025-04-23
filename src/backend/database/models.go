@@ -12,7 +12,9 @@ type Trade struct {
 	Exchange      string    `db:"exchange"`
 	Symbol        string    `db:"symbol"`
 	Side          string    `db:"side"`
-	Quantity      int       `db:"quantity"`
+	Quantity      float64   `db:"quantity"`
+	OrderType     string    `db:"order_type"`      // MKT, LMT
+	Broker        string    `db:"broker"`          // IB, TDA, etc.
 	Price         float64   `db:"price"`           // Either quote or fill price
 	BrokerOrderID int       `db:"broker_order_id"` // 0 for unsubmitted trades
 	TradingDate   string    `db:"trading_date"`    // YYYY-MM-DD format
