@@ -12,21 +12,18 @@ import (
 	_ "github.com/lib/pq"
 )
 
-// Trade represents a trade record from the database
+// Trade represents a trade record from the database with only essential fields
 type Trade struct {
-	ID            int64     `json:"id"`
-	StrategyName  string    `json:"strategy_name"`
-	ContractID    int       `json:"contract_id"`
-	Exchange      string    `json:"exchange"`
-	Symbol        string    `json:"symbol"`
-	Side          string    `json:"side"`
-	Quantity      int       `json:"quantity"`
-	Price         float64   `json:"price"`
-	BrokerOrderID int       `json:"broker_order_id"`
-	TradingDate   string    `json:"trading_date"`
-	Status        string    `json:"status"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	ID           int64     `json:"id"`
+	StrategyName string    `json:"strategy_name"`
+	Symbol       string    `json:"symbol"`
+	Exchange     string    `json:"exchange"`
+	Side         string    `json:"side"`
+	Quantity     int       `json:"quantity"`
+	Price        float64   `json:"price"`
+	Status       string    `json:"status"`
+	BrokerOrderID int      `json:"broker_order_id"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 var db *sql.DB
@@ -75,7 +72,7 @@ func CloseDB() {
 	}
 }
 
-// SSETradesHandler handles the SSE endpoint for streaming today's trades
+// SSETradesHandler handles the SSE endpoint for streaming recent trades
 func SSETradesHandler(w http.ResponseWriter, r *http.Request) {
 	// Set headers for SSE
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -93,14 +90,6 @@ func SSETradesHandler(w http.ResponseWriter, r *http.Request) {
 	// Create a channel to signal client disconnection
 	clientClosed := r.Context().Done()
 
-	// Query parameter for filtering by strategy or symbol
-	strategy := r.URL.Query().Get("strategy")
-	symbol := r.URL.Query().Get("symbol")
-
-	// Start with an initial fetch of today's trades
-	today := time.Now().Format("2006-01-02")
-	// lastID := int64(0)
-
 	// Keep the connection open until client disconnects
 	for {
 		select {
@@ -108,9 +97,8 @@ func SSETradesHandler(w http.ResponseWriter, r *http.Request) {
 			log.Println("Client closed connection")
 			return
 		default:
-			// Fetch all trades
-			// trades, err := fetchNewTrades(today, lastID, strategy, symbol)
-			trades, err := fetchTrades(today, strategy, symbol)
+			// Fetch trades from the last 24 hours
+			trades, err := fetchRecentTrades()
 			if err != nil {
 				log.Printf("Error fetching trades: %v", err)
 				// Send error event to client
@@ -120,25 +108,26 @@ func SSETradesHandler(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
-			// Send each trade as an SSE event
+			// Convert trades to a map with trade ID as key for the front-end
+			tradesMap := make(map[string]Trade)
 			for _, trade := range trades {
-				// if trade.ID > lastID {
-				// 	lastID = trade.ID
-				// }
-
-				// Convert trade to JSON
-				tradeJSON, err := json.Marshal(trade)
-				if err != nil {
-					log.Printf("Error marshaling trade: %v", err)
-					continue
-				}
-
-				// Send the event
-				fmt.Fprintf(w, "event: trade\ndata: %s\n\n", tradeJSON)
-				flusher.Flush()
+				// Use ID as string key
+				key := fmt.Sprintf("trade-%d", trade.ID)
+				tradesMap[key] = trade
 			}
 
-			// If requested, send a heartbeat to keep connection alive
+			// Convert the map to JSON
+			tradesJSON, err := json.Marshal(tradesMap)
+			if err != nil {
+				log.Printf("Error marshaling trades map: %v", err)
+				continue
+			}
+
+			// Send the event with all trades at once
+			fmt.Fprintf(w, "data: %s\n\n", tradesJSON)
+			flusher.Flush()
+
+			// Send a heartbeat to keep connection alive
 			fmt.Fprintf(w, "event: heartbeat\ndata: %s\n\n", time.Now().Format(time.RFC3339))
 			flusher.Flush()
 
@@ -148,36 +137,22 @@ func SSETradesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// fetchNewTrades retrieves trades from today that have an ID greater than lastID
-func fetchNewTrades(date string, lastID int64, strategy, symbol string) ([]Trade, error) {
-	var query string
-	var args []interface{}
+// fetchRecentTrades retrieves trades from the last 24 hours
+func fetchRecentTrades() ([]Trade, error) {
+	// Calculate timestamp for 24 hours ago
+	oneDayAgo := time.Now().Add(-24 * time.Hour)
 
-	// Base query
-	baseQuery := `
-		SELECT id, strategy_name, contract_id, exchange, symbol, side, quantity,
-			price, broker_order_id, trading_date, status, created_at, last_updated_at
+	// Query to get trades from the last 24 hours
+	query := `
+		SELECT id, strategy_name, exchange, symbol, side, quantity,
+			price, broker_order_id, status, last_updated_at
 		FROM trades
-		WHERE trading_date = $1 AND id > $2
+		WHERE last_updated_at >= $1
+		ORDER BY last_updated_at DESC
 	`
 
-	// Add filters based on parameters
-	if strategy != "" && symbol != "" {
-		query = baseQuery + " AND strategy_name = $3 AND symbol = $4 ORDER BY id ASC"
-		args = []interface{}{date, lastID, strategy, symbol}
-	} else if strategy != "" {
-		query = baseQuery + " AND strategy_name = $3 ORDER BY id ASC"
-		args = []interface{}{date, lastID, strategy}
-	} else if symbol != "" {
-		query = baseQuery + " AND symbol = $3 ORDER BY id ASC"
-		args = []interface{}{date, lastID, symbol}
-	} else {
-		query = baseQuery + " ORDER BY id ASC"
-		args = []interface{}{date, lastID}
-	}
-
 	// Execute query
-	rows, err := db.Query(query, args...)
+	rows, err := db.Query(query, oneDayAgo)
 	if err != nil {
 		return nil, err
 	}
@@ -187,80 +162,17 @@ func fetchNewTrades(date string, lastID int64, strategy, symbol string) ([]Trade
 	var trades []Trade
 	for rows.Next() {
 		var t Trade
-		var createdAt, updatedAt time.Time
+		var updatedAt time.Time
 
 		err := rows.Scan(
-			&t.ID, &t.StrategyName, &t.ContractID, &t.Exchange, &t.Symbol,
-			&t.Side, &t.Quantity, &t.Price, &t.BrokerOrderID, &t.TradingDate,
-			&t.Status, &createdAt, &updatedAt,
+			&t.ID, &t.StrategyName, &t.Exchange, &t.Symbol,
+			&t.Side, &t.Quantity, &t.Price, &t.BrokerOrderID,
+			&t.Status, &updatedAt,
 		)
 		if err != nil {
 			return nil, err
 		}
 
-		t.CreatedAt = createdAt
-		t.UpdatedAt = updatedAt
-		trades = append(trades, t)
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return trades, nil
-}
-
-// s retrieves trades from today
-func fetchTrades(date string, strategy, symbol string) ([]Trade, error) {
-	var query string
-	var args []interface{}
-
-	// Base query
-	baseQuery := `
-		SELECT id, strategy_name, contract_id, exchange, symbol, side, quantity,
-			price, broker_order_id, trading_date, status, created_at, last_updated_at
-		FROM trades
-		WHERE trading_date = $1
-	`
-
-	// Add filters based on parameters
-	if strategy != "" && symbol != "" {
-		query = baseQuery + " AND strategy_name = $3 AND symbol = $4 ORDER BY id ASC"
-		args = []interface{}{date, strategy, symbol}
-	} else if strategy != "" {
-		query = baseQuery + " AND strategy_name = $3 ORDER BY id ASC"
-		args = []interface{}{date, strategy}
-	} else if symbol != "" {
-		query = baseQuery + " AND symbol = $3 ORDER BY id ASC"
-		args = []interface{}{date, symbol}
-	} else {
-		query = baseQuery + " ORDER BY id ASC"
-		args = []interface{}{date}
-	}
-
-	// Execute query
-	rows, err := db.Query(query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	// Process results
-	var trades []Trade
-	for rows.Next() {
-		var t Trade
-		var createdAt, updatedAt time.Time
-
-		err := rows.Scan(
-			&t.ID, &t.StrategyName, &t.ContractID, &t.Exchange, &t.Symbol,
-			&t.Side, &t.Quantity, &t.Price, &t.BrokerOrderID, &t.TradingDate,
-			&t.Status, &createdAt, &updatedAt,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		t.CreatedAt = createdAt
 		t.UpdatedAt = updatedAt
 		trades = append(trades, t)
 	}
