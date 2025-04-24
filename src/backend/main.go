@@ -15,7 +15,6 @@ import (
 	"path/filepath"
 	"pytrader/database"
 	"pytrader/definitions"
-	"strings"
 
 	pb "pytrader/tradepb"
 	"strconv"
@@ -36,14 +35,14 @@ type OrderResponse struct {
 }
 
 type TradeInstruction struct {
-	StrategyName string `json:"strategy_name"`
-	ContractId   int    `json:"contract_id"`
-	Exchange     string `json:"exchange"`
-	Symbol       string `json:"symbol"`
-	Side         string `json:"side"`
-	Quantity     float64    `json:"quantity"`
-	OrderType    string `json:"order_type"` // MKT, LMT
-	Broker       string `json:"broker"`     // IB, TDA, etc.
+	StrategyName string  `json:"strategy_name"`
+	ContractId   int     `json:"contract_id"`
+	Exchange     string  `json:"exchange"`
+	Symbol       string  `json:"symbol"`
+	Side         string  `json:"side"`
+	Quantity     float64 `json:"quantity"`
+	OrderType    string  `json:"order_type"` // MKT, LMT
+	Broker       string  `json:"broker"`     // IB, TDA, etc.
 }
 
 type Order struct {
@@ -299,7 +298,7 @@ func processNewTrades(workerId int) {
 		if tradeID > 0 {
 			err = database.UpdateTradeToSubmitted(tradeID, orderId, lmtPrice)
 			if err != nil {
-				log.Printf("%sWarning: Failed to update trade status in database: %v", workerInfo, err)
+				log.Printf("%sWarning: Failed to update trade status to Submitted in database: %v", workerInfo, err)
 			}
 		}
 
@@ -356,11 +355,11 @@ func monitorFill(orderResp OrderResponse) {
 			// Update trade status in database
 			err := database.UpdateTradeStatus(
 				orderResp.OrderId,
-				strings.ToLower(trade.Status), // Using lowercase to match our db convention
+				trade.Status,
 				trade.Price,
 			)
 			if err != nil {
-				log.Printf("Warning: Failed to update trade status in database: %v", err)
+				log.Printf("Warning: Failed to update trade status to Filled/Cancelled in database: %v", err)
 			}
 
 			updatePositionsFromResponse(orderResp, trade.Status, trade.Price,

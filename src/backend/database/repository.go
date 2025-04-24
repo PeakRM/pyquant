@@ -67,6 +67,7 @@ func UpdateTradeStatus(brokerOrderID int, status string, filledPrice float64) er
 
 	result, err := db.Exec(query, status, time.Now(), filledPrice, brokerOrderID, tradingDate)
 	if err != nil {
+		fmt.Println("Error:", status, filledPrice, brokerOrderID, tradingDate)
 		return fmt.Errorf("failed to update trade status: %v", err)
 	}
 
