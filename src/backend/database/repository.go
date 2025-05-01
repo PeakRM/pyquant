@@ -61,7 +61,7 @@ func UpdateTradeStatus(brokerOrderID int, status string, filledPrice float64) er
 
 	query := `
 	UPDATE trades
-	SET status = $1, last_updated_at = $2, price = CASE WHEN $1 = 'Filled' THEN $3 ELSE price END
+	SET status = $1, last_updated_at = $2, price = CASE WHEN status = 'Filled' THEN $3 ELSE price END
 	WHERE broker_order_id = $4 AND trading_date = $5
 	`
 
