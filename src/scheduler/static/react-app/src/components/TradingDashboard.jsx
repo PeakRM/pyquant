@@ -99,6 +99,9 @@ export default function TradingDashboard() {
       fetchStrategies();
     };
 
+    // const { title, value, change, isPositive } = metric;
+
+
     return () => {
       positionSource.close();
       refreshSource.close();
