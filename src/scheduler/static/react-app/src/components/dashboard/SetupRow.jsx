@@ -37,8 +37,9 @@ const SetupRow = ({
       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{setupName}</td>
       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{setup.market}</td>
       <td className="px-6 py-4 whitespace-nowrap text-center">
-        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${setup.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-          {setup.active ? 'Active' : 'Inactive'}
+        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${setup.enabled ? 'bg-yellow-900 bg-opacity-30 text-yellow-400' : 'bg-red-100 text-red-800'}`}>  
+          {/* Running -> 'bg-green-100 text-green-800'*/}
+          {setup.enabled ? 'Enabled' : 'Disabled'}  {/* If enabled and stored in 'running_stratgies' -> Running */}
         </span>
       </td>
       <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-500">{setup.timeframe}</td>
@@ -61,9 +62,9 @@ const SetupRow = ({
               e.stopPropagation();
               onToggleSetup(setupName);
             }}
-            className={`p-1.5 rounded-full ${setup.active ? 'bg-red-100 text-red-600 hover:bg-red-200' : 'bg-green-100 text-green-600 hover:bg-green-200'}`}
+            className={`p-1.5 rounded-full ${setup.enabled ? 'bg-red-100 text-red-600 hover:bg-red-200' : 'bg-green-100 text-green-600 hover:bg-green-200'}`}
           >
-            {setup.active ? <Pause size={16} /> : <Play size={16} />}
+            {setup.enabled ? <Pause size={16} /> : <Play size={16} />}
           </button>
           <button
             onClick={(e) => {

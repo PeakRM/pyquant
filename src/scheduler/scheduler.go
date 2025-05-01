@@ -35,7 +35,7 @@ import (
 type Setup struct {
 	Market     string   `json:"market"`
 	ContractId int      `json:"contract_id"`
-	Active     bool     `json:"active"`
+	Enabled     bool     `json:"enabled"`
 	Timeframe  string   `json:"timeframe"`
 	Schedule   string   `json:"schedule"`
 	MarketData []string `json:"market_data"`
@@ -196,7 +196,7 @@ func addStrategyToConfigFile(scriptPath, strategyName, typeVal, setupName, marke
 	setup := Setup{
 		Market:     market,
 		ContractId: contractId,
-		Active:     false,
+		Enabled:     false,
 		Timeframe:  timeframe,
 		Schedule:   schedule,
 		MarketData: strings.Split(additionalData, ","),
@@ -310,7 +310,7 @@ func monitorScripts(checkInterval time.Duration) {
 						return
 					}
 
-					setup.Active = false
+					setup.Enabled = false
 
 					// 3) Update the local strategies map
 					strat.Setups[setupName] = setup
@@ -437,7 +437,7 @@ func newStrategyHandler(w http.ResponseWriter, r *http.Request) {
 		defer file.Close()
 
 		// Create a local directory (inside container) to store the upload.
-		uploadDir := "C:/Users/Jon/Projects/pyquant/src/scheduler/strategies"
+		uploadDir := "C:/Users/Jon/Projects/pyquant/src/scheduler/shared_files/strategies"
 
 		if os.Getenv("ENVIRONMENT") == "production" || os.Getenv("ENVIRONMENT") == "docker" {
 			uploadDir = "/app/strategies"
@@ -532,7 +532,7 @@ func addSetupHandler(w http.ResponseWriter, r *http.Request) {
 		Timeframe:  r.FormValue("timeframe"),
 		Schedule:   r.FormValue("schedule"),
 		MarketData: strings.Split(r.FormValue("market_data"), ","),
-		Active:     false,
+		Enabled:     false,
 	}
 	fmt.Println(r.FormValue("market_data"))
 	fmt.Println(newSetup)
@@ -789,13 +789,13 @@ func toggleSetup(strategyName, setupName string, w http.ResponseWriter, r *http.
 		return
 	}
 
-	// 2) If setup.Active == true, we want to stop it
-	//    If setup.Active == false, we want to start it
-	if setup.Active {
+	// 2) If setup.Enabled == true, we want to stop it
+	//    If setup.Enabled == false, we want to start it
+	if setup.Enabled {
 		// Stop
 		stopScript(strategyName, setupName)
 		// Mark as inactive
-		setup.Active = false
+		setup.Enabled = false
 	} else {
 		// Start
 		if err := startScript(strat.ScriptPath, strategyName, setupName); err != nil {
@@ -803,7 +803,7 @@ func toggleSetup(strategyName, setupName string, w http.ResponseWriter, r *http.
 			return
 		}
 		// Mark as active
-		setup.Active = true
+		setup.Enabled = true
 	}
 
 	// 3) Update the local strategies map
@@ -873,7 +873,7 @@ func updateSetup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 6) If the setup is currently active, restart it with new configuration
-	if foundSetup.Active {
+	if foundSetup.Enabled {
 		stopScript(foundStrategy, setupName)
 
 		if err := startScript(strat.ScriptPath, foundStrategy, setupName); err != nil {
@@ -1021,10 +1021,10 @@ func GetSharedVenvPath() (string, error) {
 // GetSharedFilePath returns the appropriate path based on environment
 func GetSharedFilePath(filename string) string {
 	// Check if running in container by looking for /.dockerenv
-	if _, err := os.Stat("/.dockerenv"); err == nil {
+	if os.Getenv("ENVIRONMENT") == "production" || os.Getenv("ENVIRONMENT") == "docker" {
 		return filepath.Join("/shared", filename)
 	}
-
+	
 	// Development environment
 	return filepath.Join("..", "..", "shared_files", filename)
 }
