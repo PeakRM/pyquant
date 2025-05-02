@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
 /**
@@ -13,16 +13,7 @@ const TradingActivityComponent = ({
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(initialCollapsed);
   const [activeTab, setActiveTab] = useState(initialTab);
-  const [containerHeight, setContainerHeight] = useState('auto');
   const containerRef = useRef(null);
-
-  // Measure and update the container height when needed
-  useEffect(() => {
-    if (containerRef.current && !isCollapsed) {
-      const height = containerRef.current.scrollHeight;
-      setContainerHeight(`${height}px`);
-    }
-  }, [positions, trades, isCollapsed, activeTab]);
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-6">
@@ -32,8 +23,8 @@ const TradingActivityComponent = ({
         onClick={() => setIsCollapsed(!isCollapsed)}
       >
         <div className="flex items-center">
-        <h2 className="text-lg font-medium text-gray-700">Trading Activity</h2>
-        <span className="ml-2 text-gray-500 text-sm">
+        <h2 className="text-base font-small text-gray-700">Trading Activity</h2>
+        <span className="ml-2 text-gray-500 text-base">
             {activeTab === 'positions'
               ? `${Object.keys(positions).length} active positions`
               : 'Last 24 hours'}
@@ -80,9 +71,11 @@ const TradingActivityComponent = ({
       {/* Content container with smooth transition */}
       <div
         ref={containerRef}
-        className="overflow-x-auto overflow-hidden transition-all duration-300 ease-in-out"
+        className="overflow-x-auto transition-all duration-300 ease-in-out"
         style={{
-          maxHeight: isCollapsed ? '0px' : containerHeight,
+          maxHeight: isCollapsed ? '0px' : '500px',
+          height: Object.keys(activeTab === 'positions' ? positions : trades).length > 5 ? '500px' : 'auto',
+          overflowY: 'auto',
           opacity: isCollapsed ? 0 : 1
         }}
       >
@@ -102,16 +95,16 @@ const TradingActivityComponent = ({
 const PositionsTable = ({ positions }) => {
   return (
     <table className="w-full text-sm">
-      <thead className="bg-gray-50 text-left text-xs uppercase">
+      <thead className="bg-gray-50 text-left text-xs uppercase sticky top-0 z-10">
       <tr>
-          <th className="px-3 py-2 text-gray-500 font-medium">Market</th>
-          <th className="px-3 py-2 text-gray-500 font-medium">Pos</th>
-          <th className="px-3 py-2 text-gray-500 font-medium">Avg Entry</th>
+          <th className="px-3 py-2 text-gray-500 font-small">Market</th>
+          <th className="px-3 py-2 text-gray-500 font-small">Pos</th>
+          <th className="px-3 py-2 text-gray-500 font-small">Avg Entry</th>
           {/* <th className="px-3 py-2">Current</th> */}
-          <th className="px-3 py-2 text-gray-500 font-medium">Unrealized P&L</th>
+          <th className="px-3 py-2 text-gray-500 font-small">Unrealized P&L</th>
           {/* <th className="px-3 py-2">Realized P&L</th> */}
-          <th className="px-3 py-2 text-gray-500 font-medium">Value</th>
-          <th className="ppx-3 py-2 text-gray-500 font-medium">Setup</th>
+          {/* <th className="px-3 py-2 text-gray-500 font-small">Value</th> */}
+          <th className="px-3 py-2 text-gray-500 font-small">Setup</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-gray-200">
@@ -120,7 +113,7 @@ const PositionsTable = ({ positions }) => {
             key={setupName}
             className= {index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}
           >
-            <td className="px-3 py-2 font-medium text-gray-700">{position.symbol}</td>
+            <td className="px-3 py-2 font-small text-gray-700">{position.symbol}</td>
             <td className="px-3 py-2 text-center" >
               <span className={position.quantity > 0 ? 'text-green-600' : position.quantity < 0 ? 'text-red-600' : 'text-gray-500'}>
                 {position.quantity > 0 ? '+' : ''}{position.quantity}
@@ -138,7 +131,7 @@ const PositionsTable = ({ positions }) => {
                 ${position.realized?.toFixed(2)}
               </span>
             </td> */}
-            <td className="px-3 py-2 text-gray-700 text-center" >${position.value?.toFixed(2)}</td>
+            {/* <td className="px-3 py-2 text-gray-700 text-center" >${position.value?.toFixed(2)}</td> */}
             <td className="px-3 py-2 text-center">
               <div className="flex flex-wrap gap-1 text-center">
                 <span className="bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full text-center">
@@ -159,17 +152,17 @@ const PositionsTable = ({ positions }) => {
 const TradesTable = ({ trades }) => {
   return (
     <table className="w-full text-sm">
-      <thead className="bg-gray-50 text-left text-xs uppercase">
+      <thead className="bg-gray-50 text-left text-xs uppercase sticky top-0 z-10">
         <tr>
-          <th className="px-3 py-2 text-gray-500 font-medium">ID</th>
-          <th className="px-3 py-2 text-gray-500 font-medium">Strategy</th>
-          <th className="px-3 py-2 text-gray-500 font-medium">Market</th>
-          <th className="px-3 py-2 text-gray-500 font-medium">Side</th>
+          <th className="px-3 py-2 text-gray-500 font-small">ID</th>
+          <th className="px-3 py-2 text-gray-500 font-small">Strategy</th>
+          <th className="px-3 py-2 text-gray-500 font-small">Market</th>
+          <th className="px-3 py-2 text-gray-500 font-small">Side</th>
           {/* <th className="px-3 py-2">Type</th> */}
-          <th className="px-3 py-2 text-gray-500 font-medium">Qty</th>
-          <th className="px-3 py-2 text-gray-500 font-medium">Price</th>
-          <th className="px-3 py-2 text-gray-500 font-medium">Status</th>
-          <th className="px-3 py-2 text-gray-500 font-medium">Time</th>
+          <th className="px-3 py-2 text-gray-500 font-small">Qty</th>
+          <th className="px-3 py-2 text-gray-500 font-small">Price</th>
+          <th className="px-3 py-2 text-gray-500 font-small">Status</th>
+          <th className="px-3 py-2 text-gray-500 font-small">Time</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-gray-200">
@@ -178,7 +171,7 @@ const TradesTable = ({ trades }) => {
             key={setupName}
             className={index % 2 === 0 ?  'bg-white' : 'bg-gray-50'}
           >
-            <td className="px-3 py-2 font-medium text-gray-700">{trade.broker_order_id}</td>
+            <td className="px-3 py-2 font-small text-gray-700">{trade.broker_order_id}</td>
             <td className="px-3 py-2 text-gray-700">{trade.strategy_name}</td>
             <td className="px-3 py-2 text-gray-700">{trade.exchange}:{trade.symbol}</td>
             <td className="px-3 py-2">

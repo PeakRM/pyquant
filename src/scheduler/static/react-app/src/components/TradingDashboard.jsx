@@ -410,7 +410,7 @@ export default function TradingDashboard() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
         {/* Trading Activity Component - 50% width on larger screens, full width on mobile */}
-        <div className="w-full md:w-1/2 mx-auto">
+        <div className="w-full md:w-1/2 justify-start">
           <TradingActivityComponent
             positions={positions}
             trades={trades}
@@ -418,8 +418,8 @@ export default function TradingDashboard() {
             initialCollapsed={false}
           />
         </div>
-        <div className="w-full md:w-1/2 mx-auto">
-<KPIMetricsDashboard metrics={kpiMetrics} />
+        <div className="w-full md:w-1/2 justify-end">
+          <KPIMetricsDashboard metrics={kpiMetrics} />
         </div>
 
         {/* Chart Section */}
