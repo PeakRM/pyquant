@@ -409,22 +409,25 @@ export default function TradingDashboard() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
-        {/* Trading Activity Component - 50% width on larger screens, full width on mobile */}
-        <div className="w-full md:w-1/2 justify-start">
-          <TradingActivityComponent
-            positions={positions}
-            trades={trades}
-            initialTab="positions"
-            initialCollapsed={false}
-          />
-        </div>
-        <div className="w-full md:w-1/2 justify-end">
+        {/* Trading Activity and Chart Section side by side */}
+        <div className="flex flex-col md:flex-row md:space-x-6 mb-6">
+          {/* Trading Activity Component */}
+          <div className="w-full md:w-1/2">
+            <TradingActivityComponent
+              positions={positions}
+              trades={trades}
+              initialTab="positions"
+              initialCollapsed={false}
+            />
+          </div>
           {/* Chart Section */}
-          <ChartSection
-            selectedSetup={selectedSetup}
-            chartData={chartData}
-            chartLoading={chartLoading}
-          />
+          <div className="w-full md:w-1/2">
+            <ChartSection
+              selectedSetup={selectedSetup}
+              chartData={chartData}
+              chartLoading={chartLoading}
+            />
+          </div>
         </div>
 
         {/* Strategy List */}

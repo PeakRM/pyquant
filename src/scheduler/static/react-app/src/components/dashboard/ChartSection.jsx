@@ -4,14 +4,14 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 
 const ChartSection = ({ selectedSetup, chartData, chartLoading }) => {
   return (
-    <div className="bg-white rounded-lg shadow-md p-4 mb-6 w-full">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-lg font-medium text-gray-800">
-          {selectedSetup ? `Chart: ${selectedSetup.setupName} (${selectedSetup.market})` : 'Select a trading setup to view chart'}
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden h-full">
+      <div className="p-3 flex items-center justify-between bg-gray-50 border-b border-gray-200">
+        <h2 className="text-base font-small text-gray-700">
+          {selectedSetup ? `Chart: ${selectedSetup.setupName} (${selectedSetup.market})` : 'Market Chart'}
         </h2>
       </div>
-      
-      <div className="h-64">
+
+      <div className="h-[275px]">
         {chartLoading ? (
           <div className="flex justify-center items-center h-full">
             <RefreshCw className="animate-spin text-blue-500" size={40} />
@@ -20,8 +20,8 @@ const ChartSection = ({ selectedSetup, chartData, chartLoading }) => {
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }} >
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis 
-                dataKey="date" 
+              <XAxis
+                dataKey="date"
                 angle={-45}
                 tickFormatter={(value) => {
                   const date = new Date(value);
@@ -30,7 +30,7 @@ const ChartSection = ({ selectedSetup, chartData, chartLoading }) => {
                     minute: '2-digit',
                     hour12: false
                   });
-                  
+
                   const formattedTime = timeFormatter.format(date);
                   return formattedTime;
                 }}
@@ -38,12 +38,12 @@ const ChartSection = ({ selectedSetup, chartData, chartLoading }) => {
               <YAxis type="number" domain={['auto', 'auto']} />
               <Tooltip />
               <Legend />
-              <Line type="monotone" 
-                    dataKey="close" 
-                    stroke="#3B82F6" 
+              <Line type="monotone"
+                    dataKey="close"
+                    stroke="#3B82F6"
                     name="Close Price"
                     strokeWidth={2}
-                    dot={false} 
+                    dot={false}
                     activeDot={{ r: 6 }}  />
             </LineChart>
           </ResponsiveContainer>
