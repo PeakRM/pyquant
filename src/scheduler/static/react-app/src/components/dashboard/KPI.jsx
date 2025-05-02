@@ -6,7 +6,7 @@ import React from 'react';
  */
 export const KPIMetricsDashboard = ({ metrics }) => {
   return (
-    <div className="grid grid-cols-4 gap-4 mb-6">
+    <div className="grid grid-cols-2 grid-rows-2 gap-4 mb-6">
       {metrics.map((metric, index) => (
         <KPIMetricCard key={index} metric={metric} />
       ))}
@@ -20,14 +20,14 @@ export const KPIMetricsDashboard = ({ metrics }) => {
  */
 export const KPIMetricCard = ({ metric }) => {
   const { title, value, change, isPositive } = metric;
-  
+
   return (
-    <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
-      <h3 className="text-gray-600 text-sm font-medium">{title}</h3>
+    <div className="bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-700">
+      <h3 className="text-gray-400 text-sm font-medium">{title}</h3>
       <div className="flex items-end mt-1">
-        <span className="text-2xl font-bold text-gray-800">{value}</span>
+        <span className="text-2xl font-bold text-gray-300">{value}</span>
         {change && (
-          <span className={`ml-2 text-sm ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+          <span className={`ml-2 text-sm ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
             {change}
           </span>
         )}
@@ -42,8 +42,8 @@ export const KPIMetricCard = ({ metric }) => {
  */
 export const StrategyKPIBar = ({ activeStrategies, totalStrategies, totalPositions, unrealizedPnl, realizedPnl }) => {
   return (
-    <div className="flex-1 flex justify-around border-l border-r border-gray-200 px-6">
-      <KPIItem 
+    <div className="flex-1 flex justify-around border-l border-r border-gray-700 px-6">
+      <KPIItem
         icon="Layers"
         label="Active"
         value={<>{activeStrategies} <span className="text-xs text-gray-500">/ {totalStrategies}</span></>}

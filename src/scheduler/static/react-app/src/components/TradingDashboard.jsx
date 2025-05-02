@@ -6,6 +6,7 @@ import ChartSection from './dashboard/ChartSection';
 import StrategyList from './dashboard/StrategyList';
 import TradingActivityComponent from './dashboard/TradingActivity';
 import { NewStrategyModal, AddSetupModal, EditSetupModal, ContractIdSidebar } from './dashboard/Modals';
+import { KPIMetricsDashboard } from './dashboard/KPI';
 
 const TICK_VALUE_MAP = new Map([
   ["MES", 5.0],
@@ -15,18 +16,46 @@ const TICK_VALUE_MAP = new Map([
   ["MNQ", 2.0],
 ]);
 const sampleTrades = [
-  { 
-    id: "ORD-42381", 
-    strategy: "VBO-MES", 
-    market: "CME:MES", 
-    side: "BUY", 
-    type: "MARKET", 
-    quantity: 1, 
-    price: 5020.25, 
-    status: "FILLED", 
-    timestamp: "13:24:36" 
+  {
+    id: "ORD-42381",
+    strategy: "VBO-MES",
+    market: "CME:MES",
+    side: "BUY",
+    type: "MARKET",
+    quantity: 1,
+    price: 5020.25,
+    status: "FILLED",
+    timestamp: "13:24:36"
   },
   // ... more trades
+
+];
+
+const sampleKPIMetrics = [
+{
+  title: "Active Strategies",
+  value: "3",
+  change: "+10%",
+  isPositive: true
+},
+{
+  title: "Total Positions",
+  value: "10",
+  change: "-5%",
+  isPositive: false
+},
+{
+  title: "Trade Count",
+  value: "3",
+  change: "+10%",
+  isPositive: true
+},
+{
+  title: "Realized PnL",
+  value: "10",
+  change: "-5%",
+  isPositive: false
+},
 ];
 // Main Dashboard Component
 export default function TradingDashboard() {
@@ -45,6 +74,7 @@ export default function TradingDashboard() {
   const [chartData, setChartData] = useState([]);
   const [chartLoading, setChartLoading] = useState(false);
   const [contractResult, setContractResult] = useState(null);
+  const [kpiMetrics, setKPIMetrics] = useState([]);
   const SCHEDULER_API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:8080' : '';
 
   // Fetch strategies on component mount
@@ -84,7 +114,7 @@ export default function TradingDashboard() {
       setCurrentPrices(priceMap);
       setPositions(newPositions);
     };
-    
+
     // Set up trade streaming
     const tradeSource = new EventSource(`${SCHEDULER_API_BASE}/streamTrades`);
     tradeSource.onmessage = (event) => {
@@ -379,14 +409,19 @@ export default function TradingDashboard() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
-        {/* Trading Activity Component */}
-        <TradingActivityComponent 
-          positions={positions}
-          trades={trades}
-          initialTab="positions"
-          initialCollapsed={false}
-        />
-      
+        {/* Trading Activity Component - 50% width on larger screens, full width on mobile */}
+        <div className="w-full md:w-1/2 mx-auto">
+          <TradingActivityComponent
+            positions={positions}
+            trades={trades}
+            initialTab="positions"
+            initialCollapsed={false}
+          />
+        </div>
+        <div className="w-full md:w-1/2 mx-auto">
+<KPIMetricsDashboard metrics={kpiMetrics} />
+        </div>
+
         {/* Chart Section */}
         <ChartSection
           selectedSetup={selectedSetup}

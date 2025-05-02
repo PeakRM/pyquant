@@ -161,43 +161,43 @@ const TradesTable = ({ trades }) => {
     <table className="w-full text-sm">
       <thead className="bg-gray-50 text-left text-xs uppercase">
         <tr>
-          <th className="px-3 py-2 text-gray-500 font-medium">ID</th>
-          <th className="px-3 py-2 text-gray-500 font-medium">Strategy</th>
-          <th className="px-3 py-2 text-gray-500 font-medium">Market</th>
-          <th className="px-3 py-2 text-gray-500 font-medium">Side</th>
+          <th className="px-3 py-2">ID</th>
+          <th className="px-3 py-2">Strategy</th>
+          <th className="px-3 py-2">Market</th>
+          <th className="px-3 py-2">Side</th>
           {/* <th className="px-3 py-2">Type</th> */}
-          <th className="px-3 py-2 text-gray-500 font-medium">Qty</th>
-          <th className="px-3 py-2 text-gray-500 font-medium">Price</th>
-          <th className="px-3 py-2 text-gray-500 font-medium">Status</th>
-          <th className="px-3 py-2 text-gray-500 font-medium">Time</th>
+          <th className="px-3 py-2">Qty</th>
+          <th className="px-3 py-2">Price</th>
+          <th className="px-3 py-2">Status</th>
+          <th className="px-3 py-2">Time</th>
         </tr>
       </thead>
-      <tbody className="divide-y divide-gray-200">
+      <tbody className="divide-y divide-gray-700">
         {Object.entries(trades).map(([setupName, trade], index) => (
           <tr
             key={setupName}
-            className={index % 2 === 0 ?  'bg-white' : 'bg-gray-50'}
+            className={index % 2 === 0 ? 'bg-gray-800' : 'bg-gray-750'}
           >
-            <td className="px-3 py-2 font-medium text-gray-700">{trade.broker_order_id}</td>
-            <td className="px-3 py-2 text-gray-700">{trade.strategy_name}</td>
-            <td className="px-3 py-2 text-gray-700">{trade.exchange}:{trade.symbol}</td>
+            <td className="px-3 py-2 font-medium text-gray-300">{trade.broker_order_id}</td>
+            <td className="px-3 py-2">{trade.strategy_name}</td>
+            <td className="px-3 py-2 text-gray-300">{trade.exchange}:{trade.symbol}</td>
             <td className="px-3 py-2">
-              <span className={trade.side === 'BUY' ? 'text-green-600' : 'text-red-600'}>
+              <span className={trade.side === 'BUY' ? 'text-green-500' : 'text-red-500'}>
                 {trade.side}
               </span>
             </td>
             {/* <td className="px-3 py-2 text-gray-300">{trade.type}</td> */}
-            <td className="px-3 py-2 text-gray-700">{trade.quantity}</td>
-            <td className="px-3 py-2 text-gray-700">${trade.price.toFixed(2)}</td>
+            <td className="px-3 py-2 text-gray-300">{trade.quantity}</td>
+            <td className="px-3 py-2 text-gray-300">${trade.price.toFixed(2)}</td>
             <td className="px-3 py-2">
               <span className={`text-xs px-2 py-0.5 rounded-full
-                ${trade.status.toUpperCase() === 'FILLED' ?  'bg-green-100 text-green-700' :
-                  trade.status.toUpperCase() === 'CANCELLED' ? 'bg-red-100 text-red-700':
-                  'bg-yellow-100 text-yellow-700'}`}>
+                ${trade.status.toUpperCase() === 'FILLED' ? 'bg-green-900 bg-opacity-30 text-green-400' :
+                  trade.status.toUpperCase() === 'CANCELLED' ? 'bg-red-900 bg-opacity-30 text-red-400' :
+                  'bg-yellow-900 bg-opacity-30 text-yellow-400'}`}>
                 {trade.status.toUpperCase()}
               </span>
             </td>
-            <td className="px-3 py-2 text-gray-700">{new Date(trade.updated_at).toLocaleTimeString()}</td>
+            <td className="px-3 py-2 text-gray-300">{new Date(trade.updated_at).toLocaleTimeString()}</td>
           </tr>
         ))}
       </tbody>
