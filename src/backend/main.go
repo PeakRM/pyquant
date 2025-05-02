@@ -255,31 +255,28 @@ func processNewTrades(workerId int) {
 			}
 		}
 		log.Printf("%sProcessing trade: %s\n", workerInfo, trade)
-		var quote Quote = Quote{} // Initialize to empty struct
-		var quantity float64 = 0.0
 		var lmtPrice float64 = 0.0 // Limit price for limit orders
+
 		if trade.OrderType == "MKT" {
 			log.Printf("%sMarket order, skipping price quote: %s\n", workerInfo, trade)
-			quote.Bid = 0.0
-			quote.Ask = 0.0
-			quote.Last = 0.0
-		} else{
+			lmtPrice = 0.
+		} else {
 			// Fetch price quote
-			
+
 			quote, err := fetchPriceQuote(trade.ContractId, trade.Exchange, trade.Broker)
 			if err != nil {
 				log.Printf("%sFailed to fetch price for symbol %s: %v", workerInfo, trade.Symbol, err)
 				continue
 			}
-			quantity, err := strconv.ParseFloat(trade.Quantity, 64)
-			if err != nil {
-				log.Printf("%sFailed to convert Quantity string to float64 for symbol %s: %v", workerInfo, trade.Quantity, err)
-				continue
-			}
-			lmtPrice := quote.Bid
+			lmtPrice = quote.Bid
 			if trade.Side == "SELL" {
 				lmtPrice = quote.Ask
 			}
+		}
+		quantity, err := strconv.ParseFloat(trade.Quantity, 64)
+		if err != nil {
+			log.Printf("%sFailed to convert Quantity string to float64 for symbol %s: %v", workerInfo, trade.Quantity, err)
+			continue
 		}
 		// Create order
 		order := Order{
