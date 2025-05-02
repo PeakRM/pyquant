@@ -71,10 +71,10 @@ const TradingActivityComponent = ({
       {/* Content container with smooth transition */}
       <div
         ref={containerRef}
-        className="overflow-x-auto transition-all duration-300 ease-in-out"
+        className="overflow-x-auto transition-all duration-400 ease-in-out"
         style={{
-          maxHeight: isCollapsed ? '0px' : '500px',
-          height: Object.keys(activeTab === 'positions' ? positions : trades).length > 5 ? '500px' : 'auto',
+          maxHeight: isCollapsed ? '0px' : '275px',
+          height: Object.keys(activeTab === 'positions' ? positions : trades).length > 5 ? '275px' : 'auto',
           overflowY: 'auto',
           opacity: isCollapsed ? 0 : 1
         }}

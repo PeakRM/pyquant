@@ -419,15 +419,13 @@ export default function TradingDashboard() {
           />
         </div>
         <div className="w-full md:w-1/2 justify-end">
-          <KPIMetricsDashboard metrics={kpiMetrics} />
+          {/* Chart Section */}
+          <ChartSection
+            selectedSetup={selectedSetup}
+            chartData={chartData}
+            chartLoading={chartLoading}
+          />
         </div>
-
-        {/* Chart Section */}
-        <ChartSection
-          selectedSetup={selectedSetup}
-          chartData={chartData}
-          chartLoading={chartLoading}
-        />
 
         {/* Strategy List */}
         <StrategyList
