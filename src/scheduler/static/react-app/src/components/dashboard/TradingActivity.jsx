@@ -138,6 +138,12 @@ const PositionsTable = ({ positions }) => {
  * Trades Table Component
  */
 const TradesTable = ({ trades }) => {
+  // Sort trades by updated_at in descending order (newest first)
+  const sortedTrades = Object.entries(trades)
+    .sort(([, tradeA], [, tradeB]) => {
+      return new Date(tradeB.updated_at) - new Date(tradeA.updated_at);
+    });
+
   return (
     <table className="w-full text-sm">
       <thead className="bg-gray-50 text-left text-xs uppercase sticky top-0 z-10">
@@ -154,7 +160,7 @@ const TradesTable = ({ trades }) => {
         </tr>
       </thead>
       <tbody className="divide-y divide-gray-200">
-        {Object.entries(trades).map(([setupName, trade], index) => (
+        {sortedTrades.map(([setupName, trade], index) => (
           <tr
             key={setupName}
             className={index % 2 === 0 ?  'bg-white' : 'bg-gray-50'}
