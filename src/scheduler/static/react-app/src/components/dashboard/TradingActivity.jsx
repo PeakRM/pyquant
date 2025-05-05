@@ -145,7 +145,7 @@ const TradesTable = ({ trades }) => {
     });
 
   return (
-    <table className="w-full text-sm">
+    <table className="w-full text-xs">
       <thead className="bg-gray-50 text-left text-xs uppercase sticky top-0 z-10">
         <tr>
           <th className="px-3 py-2 text-gray-500 font-small">ID</th>
