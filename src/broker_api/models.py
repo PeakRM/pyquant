@@ -42,6 +42,7 @@ class TradeInstruction(BaseModel):
     quantity: Union[int, float]
     order_type: OrderType = OrderType.LIMIT  # Default to limit order
     broker: str = 'IB'  # Default to Interactive Brokers
+    price: Optional[float] = None  # Optional price for limit orders
 
 class Order(BaseModel):
     trade: TradeInstruction

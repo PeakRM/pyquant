@@ -41,8 +41,9 @@ type TradeInstruction struct {
 	Symbol       string  `json:"symbol"`
 	Side         string  `json:"side"`
 	Quantity     float64 `json:"quantity"`
-	OrderType    string  `json:"order_type"` // MKT, LMT
-	Broker       string  `json:"broker"`     // IB, TDA, etc.
+	OrderType    string  `json:"order_type"`      // MKT, LMT
+	Broker       string  `json:"broker"`          // IB, TDA, etc.
+	Price        float64 `json:"price,omitempty"` // Optional price for limit orders
 }
 
 type Order struct {
@@ -91,6 +92,16 @@ func (s *server) SendTrade(ctx context.Context, trade *pb.Trade) (*pb.TradeRespo
 		return &pb.TradeResponse{Status: "Error: Invalid quantity"}, err
 	}
 
+	// Convert price string to float64 if provided
+	var price float64 = 0.0
+	if trade.Price != "" {
+		price, err = strconv.ParseFloat(trade.Price, 64)
+		if err != nil {
+			log.Printf("Warning: Failed to convert price '%s' to float64: %v", trade.Price, err)
+			// Continue with price = 0.0
+		}
+	}
+
 	// Save trade instruction to database
 	tradeID, err := database.SaveTradeInstruction(
 		trade.StrategyName,
@@ -101,6 +112,7 @@ func (s *server) SendTrade(ctx context.Context, trade *pb.Trade) (*pb.TradeRespo
 		trade.OrderType,
 		trade.Broker,
 		quantity,
+		price,
 	)
 
 	if err != nil {
@@ -257,12 +269,28 @@ func processNewTrades(workerId int) {
 		log.Printf("%sProcessing trade: %s\n", workerInfo, trade)
 		var lmtPrice float64 = 0.0 // Limit price for limit orders
 
+		// Check if price is provided in the trade instruction
+		if trade.Price != "" {
+			// Convert price string to float64
+			var err error
+			lmtPrice, err = strconv.ParseFloat(trade.Price, 64)
+			if err != nil {
+				log.Printf("%sFailed to convert price '%s' to float64: %v", workerInfo, trade.Price, err)
+				// Fall back to fetching price if conversion fails
+				lmtPrice = 0.0
+			} else {
+				log.Printf("%sUsing provided price: %f\n", workerInfo, lmtPrice)
+			}
+		}
+
+		// If price is not provided or conversion failed, and it's not a market order, fetch price
 		if trade.OrderType == "MKT" {
 			log.Printf("%sMarket order, skipping price quote: %s\n", workerInfo, trade)
-			lmtPrice = 0.
+			lmtPrice = 0.0
+		} else if lmtPrice != 0.0 {
+			log.Printf("%sUsing provided price: %f\n", workerInfo, lmtPrice)
 		} else {
 			// Fetch price quote
-
 			quote, err := fetchPriceQuote(trade.ContractId, trade.Exchange, trade.Broker)
 			if err != nil {
 				log.Printf("%sFailed to fetch price for symbol %s: %v", workerInfo, trade.Symbol, err)
@@ -273,6 +301,7 @@ func processNewTrades(workerId int) {
 				lmtPrice = quote.Ask
 			}
 		}
+
 		quantity, err := strconv.ParseFloat(trade.Quantity, 64)
 		if err != nil {
 			log.Printf("%sFailed to convert Quantity string to float64 for symbol %s: %v", workerInfo, trade.Quantity, err)
@@ -289,6 +318,7 @@ func processNewTrades(workerId int) {
 				Quantity:     quantity,
 				OrderType:    trade.OrderType,
 				Broker:       trade.Broker,
+				Price:        lmtPrice, // Include the price in the trade instruction
 			},
 			PriceQuote: lmtPrice,
 			Timestamp:  time.Now(),

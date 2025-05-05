@@ -33,12 +33,14 @@ import (
 
 // Setup represents one named setup in the config
 type Setup struct {
-	Market     string   `json:"market"`
-	ContractId int      `json:"contract_id"`
-	Enabled     bool     `json:"enabled"`
-	Timeframe  string   `json:"timeframe"`
-	Schedule   string   `json:"schedule"`
-	MarketData []string `json:"market_data"`
+	Market     string            `json:"market"`
+	ContractId int               `json:"contract_id"`
+	Enabled    bool              `json:"enabled"`
+	Timeframe  string            `json:"timeframe"`
+	Schedule   string            `json:"schedule"`
+	MarketData []string          `json:"market_data"`
+	Params     map[string]string `json:"params"`
+	// StrategyGroup string           `json:"strategy_group"` future modification
 }
 
 // Strategy represents one strategy with multiple setups
@@ -196,7 +198,7 @@ func addStrategyToConfigFile(scriptPath, strategyName, typeVal, setupName, marke
 	setup := Setup{
 		Market:     market,
 		ContractId: contractId,
-		Enabled:     false,
+		Enabled:    false,
 		Timeframe:  timeframe,
 		Schedule:   schedule,
 		MarketData: strings.Split(additionalData, ","),
@@ -532,7 +534,7 @@ func addSetupHandler(w http.ResponseWriter, r *http.Request) {
 		Timeframe:  r.FormValue("timeframe"),
 		Schedule:   r.FormValue("schedule"),
 		MarketData: strings.Split(r.FormValue("market_data"), ","),
-		Enabled:     false,
+		Enabled:    false,
 	}
 	fmt.Println(r.FormValue("market_data"))
 	fmt.Println(newSetup)
@@ -859,6 +861,8 @@ func updateSetup(w http.ResponseWriter, r *http.Request) {
 	foundSetup.Timeframe = r.FormValue("timeframe")
 	foundSetup.Schedule = r.FormValue("schedule")
 	foundSetup.MarketData = strings.Split(r.FormValue("market_data"), ",")
+	foundSetup.Enabled = r.FormValue("enabled") == "true"
+	foundSetup.Params = make(map[string]string)
 
 	// 4) Update the local strategies map
 	strat := strategies[foundStrategy]
@@ -1024,7 +1028,7 @@ func GetSharedFilePath(filename string) string {
 	if os.Getenv("ENVIRONMENT") == "production" || os.Getenv("ENVIRONMENT") == "docker" {
 		return filepath.Join("/shared", filename)
 	}
-	
+
 	// Development environment
 	return filepath.Join("..", "..", "shared_files", filename)
 }

@@ -417,7 +417,6 @@ export default function TradingDashboard() {
               positions={positions}
               trades={trades}
               initialTab="positions"
-              initialCollapsed={false}
             />
           </div>
           {/* Chart Section */}

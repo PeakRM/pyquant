@@ -14,6 +14,7 @@ message Trade {
   string quantity = 6;     // Serialize as a string for flexibility
   string order_type = 7;   // MKT, LMT
   string broker = 8;       // IB, TDA, etc.
+  string price = 9;        // Optional price for limit orders
 }
 
 // The response message

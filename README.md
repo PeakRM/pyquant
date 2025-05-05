@@ -9,8 +9,19 @@ Broker_API service is how the system communicates to different
 brokers (IBKR, TDA, etc.) to centralize execution and reconciliation. 
 
 ## Roadmap
-    - Add Risk Manager to manage overall portfolio risk
-    - Integrate Databento data-feed 
-    - Improve limit order price/execution logic
-    - Add logic to handle stops orders and improve fill monitoring
+    - New Services
+        - Add Risk Manager to manage overall portfolio risk (optional)
+        - Integrate Databento data-feed (optional)
+    - Backend
+        - Improve execution logic (optional)
+    - Broker API
+        - Add logic to handle stops orders and improve fill monitoring (optional)
+        - Add TD Ameritrade broker
+        - Add functionality to enable option trading
+    - Scehduler / Frontend
+        - Fix scheduler to use cron for scheduling strategies
+            - Add endpoint to schduler to allow strategies to send heartbeats to frontend
+        - Add setup parameters to strategy configuration at setup-level 
+        - Change strategy config to list each setup independently
+            - Add strategy-group for grouping on frontend
     

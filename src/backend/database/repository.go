@@ -7,13 +7,13 @@ import (
 )
 
 // SaveTradeInstruction stores a new trade instruction in the database
-func SaveTradeInstruction(strategyName string, contractID int32, exchange, symbol, side, orderType, broker string, quantity float64) (int64, error) {
+func SaveTradeInstruction(strategyName string, contractID int32, exchange, symbol, side, orderType, broker string, quantity float64, price float64) (int64, error) {
 	query := `
 	INSERT INTO trades (
 		strategy_name, contract_id, exchange, symbol, side, quantity, order_type, broker,
-		trading_date, status, created_at, last_updated_at
+		trading_date, status, created_at, last_updated_at, price
 	)
-	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 	RETURNING id
 	`
 
@@ -32,6 +32,7 @@ func SaveTradeInstruction(strategyName string, contractID int32, exchange, symbo
 		"Pending",
 		time.Now(),
 		time.Now(),
+		price,
 	).Scan(&id)
 
 	if err != nil {

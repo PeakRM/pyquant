@@ -103,6 +103,10 @@ services:
       - POSTGRES_USER=tradeuser
       - POSTGRES_PASSWORD=tradepass
       - POSTGRES_DB=tradedb
+      - POSTGRES_HOST_AUTH_METHOD=trust # Allow all connections without password
+      - ENVIRONMENT=${ENVIRONMENT} # Set environment variable
+      - SHARED_PATH=/shared # Set shared path
+      - TZ=America/New_York # Set timezone
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:

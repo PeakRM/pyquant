@@ -1,49 +1,44 @@
-import React, { useState, useRef } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useState } from 'react';
 
 /**
  * Trading Activity Component
- * A collapsible card with tabs for positions and trades
+ * A card with tabs for positions and trades
  */
 const TradingActivityComponent = ({
   positions,
   trades,
-  initialTab = 'positions',
-  initialCollapsed = false
+  initialTab = 'positions'
 }) => {
-  const [isCollapsed, setIsCollapsed] = useState(initialCollapsed);
   const [activeTab, setActiveTab] = useState(initialTab);
-  const containerRef = useRef(null);
+
+  // Count positions with non-zero quantity
+  const activePositionsCount = Object.values(positions).filter(position => position.quantity !== 0).length;
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden mb-6">
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden h-full">
       {/* Header with tabs */}
       <div
-        className="p-3 flex items-center justify-between cursor-pointer bg-gray-50 border-b border-gray-200"
-        onClick={() => setIsCollapsed(!isCollapsed)}
+        className="p-3 flex items-center justify-between bg-gray-50 border-b border-gray-200"
       >
         <div className="flex items-center">
         <h2 className="text-base font-small text-gray-700">Trading Activity</h2>
         <span className="ml-2 text-gray-500 text-base">
             {activeTab === 'positions'
-              ? `${Object.keys(positions).length} active positions`
+              ? `${activePositionsCount} active positions`
               : 'Last 24 hours'}
           </span>
         </div>
 
         <div className="flex items-center">
           {/* Tab Toggle */}
-          <div className="bg-gray-100 rounded-full p-1 flex mr-4">
+          <div className="bg-gray-100 rounded-full p-1 flex">
             <button
               className={`px-3 py-1 text-xs rounded-full transition-colors ${
                 activeTab === 'positions'
                   ? 'bg-blue-600 text-white'
                   : 'text-gray-700 hover:text-gray-900'
               }`}
-              onClick={(e) => {
-                e.stopPropagation();
-                setActiveTab('positions');
-              }}
+              onClick={() => setActiveTab('positions')}
             >
               Positions
             </button>
@@ -53,30 +48,20 @@ const TradingActivityComponent = ({
                   ? 'bg-blue-600 text-white'
                   : 'text-gray-700 hover:text-gray-900'
               }`}
-              onClick={(e) => {
-                e.stopPropagation();
-                setActiveTab('trades');
-              }}
+              onClick={() => setActiveTab('trades')}
             >
               Trades
             </button>
           </div>
-
-          {isCollapsed ?
-            <ChevronDown size={18} className="text-gray-500" /> :
-            <ChevronUp size={18} className="text-gray-500" />}
         </div>
       </div>
 
-      {/* Content container with smooth transition */}
+      {/* Content container */}
       <div
-        ref={containerRef}
-        className="overflow-x-auto transition-all duration-400 ease-in-out"
+        className="overflow-x-auto"
         style={{
-          maxHeight: isCollapsed ? '0px' : '275px',
-          height: Object.keys(activeTab === 'positions' ? positions : trades).length > 5 ? '275px' : 'auto',
-          overflowY: 'auto',
-          opacity: isCollapsed ? 0 : 1
+          height: '275px',
+          overflowY: 'auto'
         }}
       >
         {activeTab === 'positions' ? (
@@ -93,6 +78,9 @@ const TradingActivityComponent = ({
  * Positions Table Component
  */
 const PositionsTable = ({ positions }) => {
+  // Filter out positions with quantity equal to 0
+  const activePositions = Object.entries(positions).filter(([_, position]) => position.quantity !== 0);
+
   return (
     <table className="w-full text-sm">
       <thead className="bg-gray-50 text-left text-xs uppercase sticky top-0 z-10">
@@ -108,14 +96,14 @@ const PositionsTable = ({ positions }) => {
         </tr>
       </thead>
       <tbody className="divide-y divide-gray-200">
-        {Object.entries(positions).map(([setupName, position], index) => (
+        {activePositions.map(([setupName, position], index) => (
           <tr
             key={setupName}
             className= {index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}
           >
             <td className="px-3 py-2 font-small text-gray-700">{position.symbol}</td>
             <td className="px-3 py-2 text-center" >
-              <span className={position.quantity > 0 ? 'text-green-600' : position.quantity < 0 ? 'text-red-600' : 'text-gray-500'}>
+              <span className={position.quantity > 0 ? 'text-green-600' : 'text-red-600'}>
                 {position.quantity > 0 ? '+' : ''}{position.quantity}
               </span>
             </td>
