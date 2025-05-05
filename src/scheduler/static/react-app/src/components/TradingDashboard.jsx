@@ -225,7 +225,7 @@ export default function TradingDashboard() {
     const updatedStrategies = {...strategies};
 
     // Optimistically toggle the enabled state
-    const currentEnaled = updatedStrategies[strategyName].setups[setupName].enabled;
+    const currentEnabled = updatedStrategies[strategyName].setups[setupName].enabled;
     updatedStrategies[strategyName].setups[setupName].enabled = !currentEnabled;
 
     // Update state immediately (UI responds instantly)
