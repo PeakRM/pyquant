@@ -375,7 +375,7 @@ func monitorFill(orderResp OrderResponse) {
 		}
 
 		for _, trade := range response {
-			fmt.Printf("Order %s: %d", trade.Status, orderResp.OrderId)
+			fmt.Printf("Order %s: %d\n", trade.Status, orderResp.OrderId)
 
 			if trade.Id != orderResp.OrderId {
 				continue
@@ -396,12 +396,12 @@ func monitorFill(orderResp OrderResponse) {
 				trade.Price,
 			)
 			if err != nil {
-				log.Printf("Warning: Failed to update trade status to Filled/Cancelled in database: %v", err)
+				log.Printf("Warning: Failed to update trade status to Filled/Cancelled in database: %v\n" , err)
 			}
 
 			updatePositionsFromResponse(orderResp, trade.Status, trade.Price,
 				int(direction*math.Abs(float64(trade.Quantity))))
-			fmt.Printf("Order %s: %d", trade.Status, orderResp.OrderId)
+			fmt.Printf("Order %s: %d -- %d\n", trade.Status, orderResp.OrderId, trade.Price)
 			isFilled = true
 		}
 		time.Sleep(time.Second)

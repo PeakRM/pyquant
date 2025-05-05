@@ -62,11 +62,11 @@ func UpdateTradeStatus(brokerOrderID int, status string, filledPrice float64) er
 
 	query := `
 	UPDATE trades
-	SET status = $1, last_updated_at = $2, price = CASE WHEN status = 'Filled' THEN $3 ELSE price END
+	SET status = $1, last_updated_at = $2, price = CASE WHEN $6 = 'Filled' THEN $3 ELSE price END
 	WHERE broker_order_id = $4 AND trading_date = $5
 	`
 
-	result, err := db.Exec(query, status, time.Now(), filledPrice, brokerOrderID, tradingDate)
+	result, err := db.Exec(query, status, time.Now(), filledPrice, brokerOrderID, tradingDate, status)
 	if err != nil {
 		fmt.Println("Error:", status, filledPrice, brokerOrderID, tradingDate)
 		return fmt.Errorf("failed to update trade status: %v", err)
