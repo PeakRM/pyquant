@@ -33,7 +33,7 @@ const sampleTrades = [
 
 const sampleKPIMetrics = [
 {
-  title: "Active Strategies",
+  title: "Strategies",
   value: "3",
   change: "+10%",
   isPositive: true
@@ -224,9 +224,9 @@ export default function TradingDashboard() {
     // Create a copy of strategies to modify
     const updatedStrategies = {...strategies};
 
-    // Optimistically toggle the active state
-    const currentActive = updatedStrategies[strategyName].setups[setupName].active;
-    updatedStrategies[strategyName].setups[setupName].active = !currentActive;
+    // Optimistically toggle the enabled state
+    const currentEnaled = updatedStrategies[strategyName].setups[setupName].enabled;
+    updatedStrategies[strategyName].setups[setupName].enabled = !currentEnabled;
 
     // Update state immediately (UI responds instantly)
     setStrategies(updatedStrategies);
@@ -237,7 +237,7 @@ export default function TradingDashboard() {
     } catch (error) {
       console.error("Failed to toggle setup:", error);
       // Revert the change if the API call fails
-      updatedStrategies[strategyName].setups[setupName].active = currentActive;
+      updatedStrategies[strategyName].setups[setupName].enabled = currentEnabled;
       setStrategies(updatedStrategies);
     }
   };

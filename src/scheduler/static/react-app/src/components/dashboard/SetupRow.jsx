@@ -37,7 +37,7 @@ const SetupRow = ({
       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{setupName}</td>
       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{setup.market}</td>
       <td className="px-6 py-4 whitespace-nowrap text-center">
-        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${setup.enabled ? 'bg-yellow-900 bg-opacity-30 text-yellow-400' : 'bg-red-100 text-red-800'}`}>  
+        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${setup.enabled ? 'bg-yellow-200 text-yellow-700' : 'bg-red-100 text-red-800'}`}>  
           {/* Running -> 'bg-green-100 text-green-800'*/}
           {setup.enabled ? 'Enabled' : 'Disabled'}  {/* If enabled and stored in 'running_stratgies' -> Running */}
         </span>

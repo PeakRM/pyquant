@@ -861,7 +861,7 @@ func updateSetup(w http.ResponseWriter, r *http.Request) {
 	foundSetup.Timeframe = r.FormValue("timeframe")
 	foundSetup.Schedule = r.FormValue("schedule")
 	foundSetup.MarketData = strings.Split(r.FormValue("market_data"), ",")
-	foundSetup.Enabled = r.FormValue("enabled") == "true"
+	// foundSetup.Enabled = r.FormValue("enabled") == "true"
 	foundSetup.Params = make(map[string]string)
 
 	// 4) Update the local strategies map
