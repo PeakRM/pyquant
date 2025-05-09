@@ -23,7 +23,7 @@ type Trade struct {
 	Price        float64   `json:"price"`
 	Status       string    `json:"status"`
 	BrokerOrderID int      `json:"broker_order_id"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	UpdatedAt 	  string `json:"updated_at"`
 }
 
 var db *sql.DB
@@ -173,7 +173,7 @@ func fetchRecentTrades() ([]Trade, error) {
 			return nil, err
 		}
 
-		t.UpdatedAt = updatedAt
+		t.UpdatedAt = updatedAt.Format(time.RFC3339)
 		trades = append(trades, t)
 	}
 
