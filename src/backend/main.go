@@ -240,12 +240,13 @@ func transmitOrder(order Order, testTrade bool) (int, error) {
 
 	return orderID, nil
 }
-func processNewTrades(workerId int) {
+// func processNewTrades(workerId int) {
+func processNewTrades() {
 	for tradeWithID := range tradeChannel {
 		trade := tradeWithID.Trade
 		tradeID := tradeWithID.TradeID
 
-		workerInfo := fmt.Sprintf("Worker %d ==>", workerId)
+		// workerInfo := fmt.Sprintf("Worker %d ==>", workerId)
 
 		// Create key for Order
 		positionId := fmt.Sprintf("%s-%s", trade.StrategyName, trade.Symbol)
@@ -345,8 +346,9 @@ func processNewTrades(workerId int) {
 			OrderId: orderId,
 		}
 		updatePositionsToPending(orderResponse)
+		orderResponseChannel <- orderResponse
 
-		go monitorFill(orderResponse)
+		// go monitorFill(orderResponse)
 	}
 }
 
@@ -407,6 +409,103 @@ func monitorFill(orderResp OrderResponse) {
 		time.Sleep(time.Second)
 	}
 }
+
+func monitorFills(){
+	for orderResponse := range orderResponseChannel {
+		key := fmt.Sprintf("%v-%d",orderResponse.Order.Timestamp, orderResponse.OrderId)
+		orderResponseQueue.Store(key, orderResponse)
+	}
+}
+
+func queryTradesAtBroker() []Trade {
+	url := "http://broker_api:8000/api/IB/trades"
+	resp, err := http.Get(url)
+	if err != nil {
+		fmt.Println("Error sending GET request:", err)
+		return nil
+	}
+	defer resp.Body.Close()
+
+	// Parse the response body
+	var response []Trade
+	err = json.NewDecoder(resp.Body).Decode(&response)
+	if err != nil {
+		fmt.Println("Error decoding fills:", err)
+		return nil
+	}
+	return response
+}
+
+struct MatchedTrades {
+	OrderResponse
+	Trade
+	
+}
+
+// returns the intersection of trade list an dorder responses
+func findOrderInTrades(slice1 []Trade, slice2 []OrderResponse) []MatchedTrades {
+    intersection := []FillData{}
+    for _, val1 := range slice1 {
+        for _, val2 := range slice2 {
+            if val1.Id == val2.OrderId && val1.Status == "Filled" {
+                intersection = append(intersection, 
+									 MatchedTrades{OrderResponse:val2, Trade:val1})
+                break // Avoid duplicates from slice2m
+            }
+        }
+    }
+    return intersection
+}
+
+func monitorFillNew() {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-r.Context().Done(): 
+		return
+		case <-ticker.C:
+			//if order resposne queue is not empty
+			if len(orderResponseQueue)!= 0 {
+				// query borker api for list of trades
+				trades := queryTradesAtBroker()
+
+				// check for orderIds in Trades
+				ordersFoundInTrades := findOrderInTrades(trades, orderResponseQueue)
+				// for each order filled, Update system state
+				for idx, order := range ordersFoundInTrades {
+					fmt.Printf("Order Filled: %d\n", order.OrderId)
+					// check for orderrespos.id
+					direction := 1.0
+					if order.OrderResponse.Order.TradeInstruction.Side == "SELL" {
+						direction = -1.0
+					}
+		
+					// Update trade status in database
+					err := database.UpdateTradeStatus(
+						order.OrderResponse.OrderId,
+						order.Trade.Status,
+						order.Trade.Price,
+					)
+					if err != nil {
+						log.Printf("Warning: Failed to update trade status to Filled/Cancelled in database: %v\n" , err)
+					}
+					// update positions json
+					updatePositionsFromResponse(order.OrderResponse, order.Status, order.Price, int(direction*math.Abs(float64(order.Quantity))))
+					fmt.Printf("Order %s: %d -- %d\n", order.Status, order.OrderResponse.OrderId, order.Price)
+								
+					// remove from orderResponse queue
+					orq_key := fmt.Sprintf("%v-%d",orderResponse.Order.Timestamp, orderResponse.OrderId)
+					delete(orderResponseQueue, orq_key)  // change this to map[int]OrderResponse
+
+				}
+			} 
+	
+		}
+	}
+}
+
 
 func updatePositionsFromResponse(orderResp OrderResponse, status string, costBasis float64, quantity int) {
 	fmt.Printf("Updating Positions for %s Order\n", status)
@@ -549,9 +648,10 @@ func SyncMapToJSONFile(m *sync.Map, filename string) error {
 }
 
 var tradeChannel = make(chan *TradeWithID, 100) // Buffered channel for trades
+var orderResponseChannel = make(chan *OrderResponse, 100) // Buffered channel for trades
+var orderResponseQueue sync.Map // map[int]OrderResponse
 type poolFunction func(int)
-
-var positions sync.Map //
+var positions sync.Map // hols positions
 
 func main() {
 	// Initialize database connection
@@ -569,8 +669,8 @@ func main() {
 		return
 	}
 	// Start the trade processing worker
-	startWorkerPool(5, processNewTrades)
-
+	// startWorkerPool(5, processNewTrades)
+	go processNewTrades
 	// Start the gRPC server
 	listener, err := net.Listen("tcp", ":50051")
 	if err != nil {
