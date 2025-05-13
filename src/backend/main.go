@@ -12,9 +12,11 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"pytrader/database"
 	"pytrader/definitions"
+	"syscall"
 
 	pb "pytrader/tradepb"
 	"strconv"
@@ -240,6 +242,7 @@ func transmitOrder(order Order, testTrade bool) (int, error) {
 
 	return orderID, nil
 }
+
 // func processNewTrades(workerId int) {
 func processNewTrades() {
 	for tradeWithID := range tradeChannel {
@@ -258,16 +261,16 @@ func processNewTrades() {
 			//load position to struct
 			current_pos, ok1 := i.(definitions.Position)
 			if !ok1 {
-				fmt.Printf("%sIssue reading position: i: %s \n cp: %t\n", workerInfo, i, ok1)
+				fmt.Printf("Issue reading position: i: %s \n cp: %t\n", i, ok1)
 				continue
 			}
 
 			if current_pos.Status == "Pending" {
-				fmt.Printf("%sPending order exists, trade skipped: %s - %s - %t \n", workerInfo, trade, i, ok)
+				fmt.Printf("Pending order exists, trade skipped: %s - %s - %t \n", trade, i, ok)
 				continue
 			}
 		}
-		log.Printf("%sProcessing trade: %s\n", workerInfo, trade)
+		// log.Printf("%sProcessing trade: %s\n", workerInfo, trade)
 		var lmtPrice float64 = 0.0 // Limit price for limit orders
 
 		// Check if price is provided in the trade instruction
@@ -276,25 +279,25 @@ func processNewTrades() {
 			var err error
 			lmtPrice, err = strconv.ParseFloat(trade.Price, 64)
 			if err != nil {
-				log.Printf("%sFailed to convert price '%s' to float64: %v", workerInfo, trade.Price, err)
+				log.Printf("Failed to convert price '%s' to float64: %v", trade.Price, err)
 				// Fall back to fetching price if conversion fails
 				lmtPrice = 0.0
 			} else {
-				log.Printf("%sUsing provided price: %f\n", workerInfo, lmtPrice)
+				log.Printf("Using provided price: %f\n", lmtPrice)
 			}
 		}
 
 		// If price is not provided or conversion failed, and it's not a market order, fetch price
 		if trade.OrderType == "MKT" {
-			log.Printf("%sMarket order, skipping price quote: %s\n", workerInfo, trade)
+			log.Printf("Market order, skipping price quote: %s\n", trade)
 			lmtPrice = 0.0
 		} else if lmtPrice != 0.0 {
-			log.Printf("%sUsing provided price: %f\n", workerInfo, lmtPrice)
+			log.Printf("Using provided price: %f\n", lmtPrice)
 		} else {
 			// Fetch price quote
 			quote, err := fetchPriceQuote(trade.ContractId, trade.Exchange, trade.Broker)
 			if err != nil {
-				log.Printf("%sFailed to fetch price for symbol %s: %v", workerInfo, trade.Symbol, err)
+				log.Printf("Failed to fetch price for symbol %s: %v", trade.Symbol, err)
 				continue
 			}
 			lmtPrice = quote.Bid
@@ -305,7 +308,7 @@ func processNewTrades() {
 
 		quantity, err := strconv.ParseFloat(trade.Quantity, 64)
 		if err != nil {
-			log.Printf("%sFailed to convert Quantity string to float64 for symbol %s: %v", workerInfo, trade.Quantity, err)
+			log.Printf("Failed to convert Quantity string to float64 for symbol %s: %v", trade.Quantity, err)
 			continue
 		}
 		// Create order
@@ -328,7 +331,7 @@ func processNewTrades() {
 		// Send order
 		orderId, err := transmitOrder(order, false)
 		if err != nil {
-			log.Printf("%sFailed to submit order for strategy-symbol %s-%s: %v", workerInfo, trade.StrategyName, trade.Symbol, err)
+			log.Printf("Failed to submit order for strategy-symbol %s-%s: %v", trade.StrategyName, trade.Symbol, err)
 			continue
 		}
 
@@ -336,7 +339,7 @@ func processNewTrades() {
 		if tradeID > 0 {
 			err = database.UpdateTradeToSubmitted(tradeID, orderId, lmtPrice)
 			if err != nil {
-				log.Printf("%sWarning: Failed to update trade status to Submitted in database: %v", workerInfo, err)
+				log.Printf("Warning: Failed to update trade status to Submitted in database: %v", err)
 			}
 		}
 
@@ -346,7 +349,8 @@ func processNewTrades() {
 			OrderId: orderId,
 		}
 		updatePositionsToPending(orderResponse)
-		orderResponseChannel <- orderResponse
+		log.Println("Sending order response to channel")
+		orderResponseChannel <- &orderResponse
 
 		// go monitorFill(orderResponse)
 	}
@@ -398,21 +402,22 @@ func monitorFill(orderResp OrderResponse) {
 				trade.Price,
 			)
 			if err != nil {
-				log.Printf("Warning: Failed to update trade status to Filled/Cancelled in database: %v\n" , err)
+				log.Printf("Warning: Failed to update trade status to Filled/Cancelled in database: %v\n", err)
 			}
 
 			updatePositionsFromResponse(orderResp, trade.Status, trade.Price,
 				int(direction*math.Abs(float64(trade.Quantity))))
-			fmt.Printf("Order %s: %d -- %d\n", trade.Status, orderResp.OrderId, trade.Price)
+			fmt.Printf("Order %s: %d -- %f\n", trade.Status, orderResp.OrderId, trade.Price)
 			isFilled = true
 		}
 		time.Sleep(time.Second)
 	}
 }
 
-func monitorFills(){
+func sendOrdersToFillMonitor() {
 	for orderResponse := range orderResponseChannel {
-		key := fmt.Sprintf("%v-%d",orderResponse.Order.Timestamp, orderResponse.OrderId)
+		log.Println("Transfering order response to check for Fills")
+		key := fmt.Sprintf("%v-%d", orderResponse.Order.Timestamp, orderResponse.OrderId)
 		orderResponseQueue.Store(key, orderResponse)
 	}
 }
@@ -436,76 +441,93 @@ func queryTradesAtBroker() []Trade {
 	return response
 }
 
-struct MatchedTrades {
-	OrderResponse
+type MatchedTrades struct {
+	OrderResponse OrderResponse
 	Trade
-	
 }
 
 // returns the intersection of trade list an dorder responses
-func findOrderInTrades(slice1 []Trade, slice2 []OrderResponse) []MatchedTrades {
-    intersection := []FillData{}
-    for _, val1 := range slice1 {
-        for _, val2 := range slice2 {
-            if val1.Id == val2.OrderId && val1.Status == "Filled" {
-                intersection = append(intersection, 
-									 MatchedTrades{OrderResponse:val2, Trade:val1})
-                break // Avoid duplicates from slice2m
-            }
-        }
-    }
-    return intersection
+func findOrderInTrades(slice1 []Trade, slice2 *sync.Map) []MatchedTrades {
+	intersection := []MatchedTrades{}
+	slice2.Range(func(key, value interface{}) bool {
+
+		val2, ok := value.(*OrderResponse) // Type assertion for the value from sync.Map
+		if !ok {
+			log.Printf("Unable to assert Order Response: %v (type: %T)\n", value, value)
+			return true
+		}
+
+		for _, val1 := range slice1 {
+			log.Printf("Matching Trade -> OrderID %d, Trade ID: %d,  Trade Status: %s", val2.OrderId, val1.Id, val1.Status)
+
+			if val1.Id == val2.OrderId && val1.Status == "Filled" {
+				log.Println("Trade Trades")
+
+				intersection = append(intersection, MatchedTrades{OrderResponse: *val2, Trade: val1})
+				break // Avoid duplicates from slice2
+			}
+		}
+		return true
+	})
+
+	return intersection
 }
 
-func monitorFillNew() {
+func monitorFills(done chan struct{}) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
 	for {
 		select {
-		case <-r.Context().Done(): 
-		return
+		case <-done:
+			return
 		case <-ticker.C:
 			//if order resposne queue is not empty
-			if len(orderResponseQueue)!= 0 {
-				// query borker api for list of trades
-				trades := queryTradesAtBroker()
+			// if len(orderResponseQueue) != 0 {
+			var trades []Trade
+			// orderResponseQueue.Range(func(key, value any) {
 
-				// check for orderIds in Trades
-				ordersFoundInTrades := findOrderInTrades(trades, orderResponseQueue)
-				// for each order filled, Update system state
-				for idx, order := range ordersFoundInTrades {
-					fmt.Printf("Order Filled: %d\n", order.OrderId)
-					// check for orderrespos.id
-					direction := 1.0
-					if order.OrderResponse.Order.TradeInstruction.Side == "SELL" {
-						direction = -1.0
-					}
-		
-					// Update trade status in database
-					err := database.UpdateTradeStatus(
-						order.OrderResponse.OrderId,
-						order.Trade.Status,
-						order.Trade.Price,
-					)
-					if err != nil {
-						log.Printf("Warning: Failed to update trade status to Filled/Cancelled in database: %v\n" , err)
-					}
-					// update positions json
-					updatePositionsFromResponse(order.OrderResponse, order.Status, order.Price, int(direction*math.Abs(float64(order.Quantity))))
-					fmt.Printf("Order %s: %d -- %d\n", order.Status, order.OrderResponse.OrderId, order.Price)
-								
-					// remove from orderResponse queue
-					orq_key := fmt.Sprintf("%v-%d",orderResponse.Order.Timestamp, orderResponse.OrderId)
-					delete(orderResponseQueue, orq_key)  // change this to map[int]OrderResponse
+			// query borker api for list of trades
+			trades = queryTradesAtBroker()
+			// check for orderIds in Trades
+			ordersFoundInTrades := findOrderInTrades(trades, &orderResponseQueue)
+			// for each order filled, Update system state
+			for _, order := range ordersFoundInTrades {
+				log.Println("Reconciling Trades")
 
+				fmt.Printf("Order Filled: %d\n", order.OrderResponse.OrderId)
+				// check for orderrespos.id
+				direction := 1.0
+				if order.OrderResponse.Order.TradeInstruction.Side == "SELL" {
+					direction = -1.0
 				}
-			} 
-	
+
+				// Update trade status in database
+				err := database.UpdateTradeStatus(
+					order.OrderResponse.OrderId,
+					order.Trade.Status,
+					order.Trade.Price,
+				)
+				if err != nil {
+					log.Printf("Warning: Failed to update trade status to Filled/Cancelled in database: %v\n", err)
+				}
+				// update positions json
+				updatePositionsFromResponse(order.OrderResponse,
+					order.Trade.Status,
+					order.Trade.Price,
+					int(direction*math.Abs(float64(order.Trade.Quantity))))
+				fmt.Printf("Order %s: %d -- %f\n", order.Trade.Status,
+					order.OrderResponse.OrderId,
+					order.Trade.Price)
+
+				// remove from orderResponse queue
+				orq_key := fmt.Sprintf("%v-%d", order.OrderResponse.Order.Timestamp, order.OrderResponse.OrderId)
+				orderResponseQueue.Delete(orq_key) // change this to map[int]OrderResponse
+
+			}
 		}
 	}
 }
-
 
 func updatePositionsFromResponse(orderResp OrderResponse, status string, costBasis float64, quantity int) {
 	fmt.Printf("Updating Positions for %s Order\n", status)
@@ -647,13 +669,37 @@ func SyncMapToJSONFile(m *sync.Map, filename string) error {
 	return nil
 }
 
-var tradeChannel = make(chan *TradeWithID, 100) // Buffered channel for trades
-var orderResponseChannel = make(chan *OrderResponse, 100) // Buffered channel for trades
-var orderResponseQueue sync.Map // map[int]OrderResponse
+// Create a single shutdown function
+func shutdown() {
+	// Signal all goroutines to terminate
+	close(done)
+
+	// Save positions to file
+	if err := SyncMapToJSONFile(&positions, GetSharedFilePath("positions.json")); err != nil {
+		log.Printf("Error saving positions: %v", err)
+	}
+
+	// Close channels
+	close(tradeChannel)
+	close(orderResponseChannel)
+
+	// Give goroutines time to finish
+	time.Sleep(1 * time.Second)
+
+	// Database is already being closed with defer in main()
+}
+
+var tradeChannel = make(chan *TradeWithID, 100)           // Buffered channel for trades
+var orderResponseChannel = make(chan *OrderResponse, 100) // Channel for order response pointers
+var orderResponseQueue sync.Map                           // map[int]OrderResponse
 type poolFunction func(int)
+
+var done = make(chan struct{})
+
 var positions sync.Map // hols positions
 
 func main() {
+
 	// Initialize database connection
 	err := database.Initialize()
 	if err != nil {
@@ -668,9 +714,12 @@ func main() {
 		fmt.Println("Error unmarshalling JSON to sync.Map:", err)
 		return
 	}
+
 	// Start the trade processing worker
-	// startWorkerPool(5, processNewTrades)
-	go processNewTrades
+	// startWorkerPool(5, processNewTrades) //could be used elsewhere, when iterating in new fill monitor
+	go processNewTrades()
+	go sendOrdersToFillMonitor()
+	go monitorFills(done)
 	// Start the gRPC server
 	listener, err := net.Listen("tcp", ":50051")
 	if err != nil {
@@ -679,7 +728,16 @@ func main() {
 
 	grpcServer := grpc.NewServer()
 	pb.RegisterTradeServiceServer(grpcServer, &server{})
-
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	// Start a goroutine to handle shutdown
+	go func() {
+		<-sigChan
+		log.Println("Shutting down...")
+		shutdown()
+		grpcServer.GracefulStop()
+		os.Exit(0)
+	}()
 	log.Println("Server is running on port 50051")
 	if err := grpcServer.Serve(listener); err != nil {
 		log.Fatalf("failed to serve: %v", err)
