@@ -24,4 +24,5 @@ brokers (IBKR, TDA, etc.) to centralize execution and reconciliation.
         - Add setup parameters to strategy configuration at setup-level 
         - Change strategy config to list each setup independently
             - Add strategy-group for grouping on frontend
+        - Add KPIs for Buying Power, NLV, Cash @ broker
     
