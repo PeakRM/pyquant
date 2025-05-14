@@ -5,8 +5,8 @@ from datetime import datetime
 
 # Data Models
 class OrderType(str, Enum):
-    MARKET = "MARKET"
-    LIMIT = "LIMIT"
+    MARKET = "MKT"
+    LIMIT = "LMT"
 
 class OrderSide(str, Enum):
     BUY = "BUY"
@@ -40,6 +40,9 @@ class TradeInstruction(BaseModel):
     symbol: str
     side: OrderSide
     quantity: Union[int, float]
+    order_type: OrderType = OrderType.LIMIT  # Default to limit order
+    broker: str = 'IB'  # Default to Interactive Brokers
+    price: Optional[float] = None  # Optional price for limit orders
 
 class Order(BaseModel):
     trade: TradeInstruction

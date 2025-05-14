@@ -21,7 +21,10 @@ def send_trade(trade: TradeInstruction) -> None:
         exchange=trade.exchange,
         symbol=trade.symbol,
         side=trade.side,
-        quantity=str(trade.quantity) # Serialize as a string
+        quantity=str(trade.quantity), # Serialize as a string
+        order_type=trade.order_type,  # Add order type (MKT, LMT)
+        broker=trade.broker,          # Add broker (IB, TDA, etc.)
+        # price=trade.price
     )
 
     # Send the Trade message

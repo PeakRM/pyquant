@@ -15,11 +15,18 @@ RUN npm run build
 # Stage 3: Build Go binary
 FROM golang:1.23.4 AS go-builder
 WORKDIR /app
+# Install PostgreSQL client libraries
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 COPY go.mod .
 COPY scheduler.go .
-RUN go mod tidy
 COPY static ./static
 COPY strategies ./strategies
+COPY tradepb ./tradepb
+COPY handlers ./handlers
+RUN go mod tidy
 RUN go build -o /scheduler scheduler.go
 
 # Stage 4: Final image
@@ -30,6 +37,7 @@ COPY --from=python-deps /usr/local/bin /usr/local/bin
 COPY --from=go-builder /scheduler /scheduler
 COPY --from=go-builder /app/strategies ./strategies
 COPY --from=go-builder /app/static ./static
+COPY --from=go-builder /app/handlers ./handlers
 # Copy built React app to static directory
 COPY --from=react-builder /app/build ./static/react-app/build
 

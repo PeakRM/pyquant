@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,6 +19,12 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"scheduler/handlers"
+	pb "scheduler/tradepb"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 // -----------------------------------------------------------------
@@ -26,12 +33,14 @@ import (
 
 // Setup represents one named setup in the config
 type Setup struct {
-	Market     string   `json:"market"`
-	ContractId int      `json:"contract_id"`
-	Active     bool     `json:"active"`
-	Timeframe  string   `json:"timeframe"`
-	Schedule   string   `json:"schedule"`
-	MarketData []string `json:"market_data"`
+	Market     string            `json:"market"`
+	ContractId int               `json:"contract_id"`
+	Enabled    bool              `json:"enabled"`
+	Timeframe  string            `json:"timeframe"`
+	Schedule   string            `json:"schedule"`
+	MarketData []string          `json:"market_data"`
+	Params     map[string]string `json:"params"`
+	// StrategyGroup string           `json:"strategy_group"` future modification
 }
 
 // Strategy represents one strategy with multiple setups
@@ -79,6 +88,13 @@ func main() {
 	// Start monitoring every 30 seconds
 	monitorScripts(30 * time.Second)
 
+	// Initialize the database connection
+	err := handlers.InitDB()
+	if err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
+	}
+	defer handlers.CloseDB()
+
 	// 2. Handle endpoints
 	corsMiddleware := func(handler http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -96,6 +112,7 @@ func main() {
 	http.Handle("/strategies", corsMiddleware(http.HandlerFunc(handleListStrategies)))
 	http.Handle("/strategies/", corsMiddleware(http.HandlerFunc(handleStrategyActions)))           // e.g. POST /strategies/{strategyName}/{setupName}/toggle
 	http.Handle("/streamPositions", corsMiddleware(http.HandlerFunc(positionStreamHandler)))       // handle positions
+	http.Handle("/streamTrades", corsMiddleware(http.HandlerFunc(handlers.SSETradesHandler)))      // handle positions
 	http.Handle("/refreshStrategyConfig", corsMiddleware(http.HandlerFunc(refreshStrategyConfig))) // tells front end refresh strategies due to backend changes
 	http.Handle("/uploadNewStrategy", corsMiddleware(http.HandlerFunc(newStrategyHandler)))
 	http.Handle("/updateSetup", corsMiddleware(http.HandlerFunc(updateSetup)))
@@ -110,6 +127,13 @@ func main() {
 	// Start server
 	log.Println("Server running on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
+
+	// Set up graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	log.Println("Shutting down server...")
 }
 
 // -----------------------------------------------------------------
@@ -174,7 +198,7 @@ func addStrategyToConfigFile(scriptPath, strategyName, typeVal, setupName, marke
 	setup := Setup{
 		Market:     market,
 		ContractId: contractId,
-		Active:     false,
+		Enabled:    false,
 		Timeframe:  timeframe,
 		Schedule:   schedule,
 		MarketData: strings.Split(additionalData, ","),
@@ -227,7 +251,7 @@ func positionStreamHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -288,7 +312,7 @@ func monitorScripts(checkInterval time.Duration) {
 						return
 					}
 
-					setup.Active = false
+					setup.Enabled = false
 
 					// 3) Update the local strategies map
 					strat.Setups[setupName] = setup
@@ -365,6 +389,8 @@ func handleStrategyActions(w http.ResponseWriter, r *http.Request) {
 	switch action {
 	case "toggle":
 		toggleSetup(strategyName, setupName, w, r)
+	case "close-position":
+		closePosition(strategyName, setupName, w, r)
 	default:
 		http.Error(w, "Unknown action", http.StatusNotFound)
 	}
@@ -391,7 +417,7 @@ func newStrategyHandler(w http.ResponseWriter, r *http.Request) {
 	contractIdString := r.FormValue("contract_id")
 	timeframe := r.FormValue("timeframe")
 	schedule := r.FormValue("schedule")
-	additionalData := r.FormValue("additionalData")
+	additionalData := r.FormValue("otherMarketData")
 
 	contractId, err := strconv.Atoi(contractIdString)
 	if err != nil {
@@ -413,21 +439,29 @@ func newStrategyHandler(w http.ResponseWriter, r *http.Request) {
 		defer file.Close()
 
 		// Create a local directory (inside container) to store the upload.
-		uploadDir := "/app/strategies"
+		uploadDir := "C:/Users/Jon/Projects/pyquant/src/scheduler/shared_files/strategies"
+
+		if os.Getenv("ENVIRONMENT") == "production" || os.Getenv("ENVIRONMENT") == "docker" {
+			uploadDir = "/app/strategies"
+		}
+
 		// if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
 		// Check if local directory exists - it should
 		if _, err := exists(uploadDir); err != nil {
 			http.Error(w, "Unable to find directory", http.StatusInternalServerError)
 			return
 		}
-		// 	http.Error(w, "Unable to create upload directory", http.StatusInternalServerError)
-		// 	return
-		// }  if not make it.
+		log.Printf("[INFO] Found directory: %s\n", uploadDir)
 
 		// Build a full path
 		filePath := filepath.Join(uploadDir, handler.Filename)
+		log.Printf("[INFO] Saving file to: %s\n", filePath)
+		// Create the file on disk
 		dst, err := os.Create(filePath)
+		log.Println("[INFO] Destination:", dst)
+
 		if err != nil {
+			log.Println("[ERROR] Unable to create file:", err)
 			http.Error(w, "Unable to create file", http.StatusInternalServerError)
 			return
 		}
@@ -500,7 +534,7 @@ func addSetupHandler(w http.ResponseWriter, r *http.Request) {
 		Timeframe:  r.FormValue("timeframe"),
 		Schedule:   r.FormValue("schedule"),
 		MarketData: strings.Split(r.FormValue("market_data"), ","),
-		Active:     false,
+		Enabled:    false,
 	}
 	fmt.Println(r.FormValue("market_data"))
 	fmt.Println(newSetup)
@@ -649,6 +683,98 @@ func proxyContractId(w http.ResponseWriter, r *http.Request) {
 }
 
 // -----------------------------------------------------------------
+// gRPC Client Functions
+// -----------------------------------------------------------------
+
+// createTradeServiceClient creates a gRPC client to communicate with the backend service
+func createTradeServiceClient() (pb.TradeServiceClient, *grpc.ClientConn, error) {
+	// Determine the URL based on environment
+	fmt.Println(os.Getenv("ENVIRONMENT"))
+	var serverAddr string
+	if os.Getenv("ENVIRONMENT") == "production" || os.Getenv("ENVIRONMENT") == "docker" {
+		serverAddr = "backend:50051"
+	} else {
+		serverAddr = "localhost:50051"
+	}
+
+	fmt.Println("Connecting to backend at: ", serverAddr)
+	// Create a connection to the gRPC server
+	conn, err := grpc.Dial(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to connect to backend: %v", err)
+	}
+	fmt.Println("Connected to backend")
+	// Create a client using the connection
+	client := pb.NewTradeServiceClient(conn)
+	return client, conn, nil
+}
+
+// closePosition handles the close-position endpoint
+func closePosition(strategyName, setupName string, w http.ResponseWriter, r *http.Request) {
+	// 1) Find the position in the positions map
+	// positionId := fmt.Sprintf("%s-%s", strategyName, setupName)
+	position, ok := positions[setupName]
+	if !ok {
+		http.Error(w, "Position not found", http.StatusNotFound)
+		return
+	}
+
+	// 2) Check if there's an active position to close
+	if position.Quantity == 0 {
+		http.Error(w, "No active position to close", http.StatusBadRequest)
+		return
+	}
+
+	// 3) Determine the side for the close order (opposite of current position)
+	side := "SELL"
+	if position.Quantity < 0 {
+		side = "BUY"
+	}
+
+	// 4) Create a gRPC client to communicate with the backend
+	client, conn, err := createTradeServiceClient()
+	if err != nil {
+		http.Error(w, "Failed to connect to backend: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer conn.Close()
+
+	// 5) Create a trade message
+	trade := &pb.Trade{
+		StrategyName: strategyName,
+		ContractId:   int32(position.ContractId),
+		Exchange:     position.Exchange,
+		Symbol:       position.Symbol,
+		Side:         side,
+		Quantity:     strconv.Itoa(abs(position.Quantity)),
+		OrderType:    "MKT", // Use market order for closing positions
+		Broker:       "IB",  // Default broker
+	}
+
+	// 6) Send the trade to the backend service
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	resp, err := client.SendTrade(ctx, trade)
+	if err != nil {
+		http.Error(w, "Failed to send trade to backend: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// 7) Return success response
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"status": resp.Status})
+}
+
+// abs returns the absolute value of an integer
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
+// -----------------------------------------------------------------
 // Strategy Toggle/Update Logic
 // -----------------------------------------------------------------
 
@@ -665,13 +791,13 @@ func toggleSetup(strategyName, setupName string, w http.ResponseWriter, r *http.
 		return
 	}
 
-	// 2) If setup.Active == true, we want to stop it
-	//    If setup.Active == false, we want to start it
-	if setup.Active {
+	// 2) If setup.Enabled == true, we want to stop it
+	//    If setup.Enabled == false, we want to start it
+	if setup.Enabled {
 		// Stop
 		stopScript(strategyName, setupName)
 		// Mark as inactive
-		setup.Active = false
+		setup.Enabled = false
 	} else {
 		// Start
 		if err := startScript(strat.ScriptPath, strategyName, setupName); err != nil {
@@ -679,7 +805,7 @@ func toggleSetup(strategyName, setupName string, w http.ResponseWriter, r *http.
 			return
 		}
 		// Mark as active
-		setup.Active = true
+		setup.Enabled = true
 	}
 
 	// 3) Update the local strategies map
@@ -735,6 +861,8 @@ func updateSetup(w http.ResponseWriter, r *http.Request) {
 	foundSetup.Timeframe = r.FormValue("timeframe")
 	foundSetup.Schedule = r.FormValue("schedule")
 	foundSetup.MarketData = strings.Split(r.FormValue("market_data"), ",")
+	// foundSetup.Enabled = r.FormValue("enabled") == "true"
+	foundSetup.Params = make(map[string]string)
 
 	// 4) Update the local strategies map
 	strat := strategies[foundStrategy]
@@ -749,7 +877,7 @@ func updateSetup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 6) If the setup is currently active, restart it with new configuration
-	if foundSetup.Active {
+	if foundSetup.Enabled {
 		stopScript(foundStrategy, setupName)
 
 		if err := startScript(strat.ScriptPath, foundStrategy, setupName); err != nil {
@@ -799,6 +927,7 @@ func startScript(scriptPath, strategyName, setupName string) error {
 	if err := cmd.Start(); err != nil {
 		return err
 	}
+	defer cmd.Wait()
 	fmt.Println("Running", scriptPath, setupName)
 
 	runningMu.Lock()
@@ -896,7 +1025,7 @@ func GetSharedVenvPath() (string, error) {
 // GetSharedFilePath returns the appropriate path based on environment
 func GetSharedFilePath(filename string) string {
 	// Check if running in container by looking for /.dockerenv
-	if _, err := os.Stat("/.dockerenv"); err == nil {
+	if os.Getenv("ENVIRONMENT") == "production" || os.Getenv("ENVIRONMENT") == "docker" {
 		return filepath.Join("/shared", filename)
 	}
 

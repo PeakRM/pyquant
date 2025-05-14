@@ -25,3 +25,6 @@ class Trade(BaseModel):
     symbol: str
     side: Literal['BUY', 'SELL', 'HOLD']
     quantity: int
+    order_type: Literal['MKT', 'LMT'] = 'LMT'  # Default to limit order
+    broker: str = 'IB'  # Default to Interactive Brokers
+    # price: float = None  # Optional price for limit orders

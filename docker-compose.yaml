@@ -1,4 +1,4 @@
-version: '3.8'
+version: '3.9'
 
 services:
   backend:
@@ -8,12 +8,21 @@ services:
     ports:
       - "50051:50051"
     environment:
+      - ENVIRONMENT=${ENVIRONMENT}
       - SHARED_PATH=/shared
       - TZ=America/New_York
+      - DB_HOST=postgres
+      - DB_USER=tradeuser
+      - DB_PASSWORD=tradepass
+      - DB_NAME=tradedb
+      - DB_PORT=5432
     volumes:
       - ./shared_files:/shared
     networks:
       - project_network
+    depends_on:
+      - postgres
+    restart: unless-stopped
 
   broker_api:
     build:
@@ -22,6 +31,7 @@ services:
     ports:
       - "8000:8000"
     environment:
+      - ENVIRONMENT=${ENVIRONMENT}
       - SHARED_PATH=/shared
       - IB_HOST=ibkr
       - IB_PORT=${IB_PORT}
@@ -33,6 +43,7 @@ services:
       - project_network
     depends_on:
       - ibkr
+    restart: unless-stopped
 
   scheduler:
     build:
@@ -42,13 +53,21 @@ services:
       - "8080:8080"
     depends_on:
       - broker_api
+      - postgres
     environment:
+      - ENVIRONMENT=${ENVIRONMENT}
       - SHARED_PATH=/shared 
       - TZ=America/New_York
+      - DB_HOST=postgres
+      - DB_USER=tradeuser
+      - DB_PASSWORD=tradepass
+      - DB_NAME=tradedb
+      - DB_PORT=5432
     volumes:
       - ./shared_files:/shared      
     networks:
       - project_network
+    restart: unless-stopped
 
   ibkr:
     image: ghcr.io/extrange/ibkr:stable
@@ -59,6 +78,7 @@ services:
     ulimits:
       nofile: 10000
     environment:
+      ENVIRONMENT: ${ENVIRONMENT}
       USERNAME: ${USERNAME}
       PASSWORD: ${PASSWORD}
       TZ: America/New_York
@@ -67,9 +87,28 @@ services:
       # Allow API connections
       IBC_ReadOnlyApi: no
       # Optional: Set trading mode (paper/live)
-      IBC_TradingMode: live
+      IBC_TradingMode: paper
       IBC_AcceptIncomingConnectionAction: accept
       IBC_AcceptNonBrokerageAccountWarning: yes
+    networks:
+      - project_network
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=tradeuser
+      - POSTGRES_PASSWORD=tradepass
+      - POSTGRES_DB=tradedb
+      - POSTGRES_HOST_AUTH_METHOD=trust # Allow all connections without password
+      - ENVIRONMENT=${ENVIRONMENT} # Set environment variable
+      - SHARED_PATH=/shared # Set shared path
+      - TZ=America/New_York # Set timezone
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     networks:
       - project_network
     restart: unless-stopped
@@ -77,3 +116,6 @@ services:
 networks:
   project_network:
     driver: bridge
+
+volumes:
+  postgres_data:

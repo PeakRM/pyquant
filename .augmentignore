@@ -1,0 +1,4 @@
+.env
+/src/scheduler/strategies/
+/src/datahandler/datahandler.py
+/src/datahandler/datahandler.go
