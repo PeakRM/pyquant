@@ -6,7 +6,7 @@ services:
       context: ./src/backend
     container_name: backend
     ports:
-      - "100.95.122.7:50051:50051"
+      - "${SERVER}:50051:50051"
     environment:
       - ENVIRONMENT=${ENVIRONMENT}
       - SHARED_PATH=/shared
@@ -29,7 +29,7 @@ services:
       context: ./src/broker_api
     container_name: broker_api
     ports:
-      - "100.95.122.7:8000:8000"
+      - "${SERVER}:8000:8000"
     environment:
       - ENVIRONMENT=${ENVIRONMENT}
       - SHARED_PATH=/shared
@@ -50,7 +50,7 @@ services:
       context: ./src/scheduler
     container_name: scheduler
     ports:
-      - "100.95.122.7:8080:8080"
+      - "${SERVER}:8080:8080"
     depends_on:
       - broker_api
       - postgres
