@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"math"
 	"log"
 	"net/http"
 	"os"
@@ -27,19 +26,7 @@ type Trade struct {
 	UpdatedAt 	  string `json:"updated_at"`
 }
 
-// move these structs to models
-type Position struct { 
-	Symbol     string  `json:"symbol"`
-	Exchange   string  `json:"exchange"`
-	Quantity   int     `json:"quantity"`
-	CostBasis  float64 `json:"cost_basis"`
-	Datetime   string  `json:"datetime"`
-	ContractId int     `json:"contract_id"`
-	Status     string  `json:"status"`
-}
-
 var db *sql.DB
-var positions map[string]Position
 
 // InitDB initializes the database connection
 func InitDB() error {
@@ -62,7 +49,7 @@ func InitDB() error {
 				break
 			}
 		}
-		log.Printf("Failed to connect to DB, retrying in 3 seconds... (attempt %d/10)\n", i+1)
+		log.Printf("Failed to connect to DB, retrying in 3 seconds... (attempt %d/10)", i+1)
 		time.Sleep(3 * time.Second)
 	}
 
@@ -113,7 +100,7 @@ func SSETradesHandler(w http.ResponseWriter, r *http.Request) {
 			// Fetch trades from the last 24 hours
 			trades, err := fetchRecentTrades()
 			if err != nil {
-				log.Printf("Error fetching trades: %v\n", err)
+				log.Printf("Error fetching trades: %v", err)
 				// Send error event to client
 				fmt.Fprintf(w, "event: error\ndata: %s\n\n", err.Error())
 				flusher.Flush()
@@ -132,7 +119,7 @@ func SSETradesHandler(w http.ResponseWriter, r *http.Request) {
 			// Convert the map to JSON
 			tradesJSON, err := json.Marshal(tradesMap)
 			if err != nil {
-				log.Printf("Error marshaling trades map: %v\n", err)
+				log.Printf("Error marshaling trades map: %v", err)
 				continue
 			}
 
@@ -199,10 +186,10 @@ func fetchRecentTrades() ([]Trade, error) {
 
 // KPIMetrics represents the data structure for KPI metrics
 type KPIMetrics struct {
-	FullMaintMarginReq    KPIMetric `json:"maintMarginReq"`
-	NetLiquidation 		  KPIMetric `json:"netLiquidation"`
-	UnrealizedPnl    	  KPIMetric `json:"unrealizedPnl"`
-	RealizedPnL   	 	  KPIMetric `json:"realizedPnl"`
+	Strategies    KPIMetric `json:"strategies"`
+	TotalPositions KPIMetric `json:"totalPositions"`
+	TradeCount    KPIMetric `json:"tradeCount"`
+	RealizedPnL   KPIMetric `json:"realizedPnL"`
 }
 
 // KPIMetric represents a single KPI metric with its value and change
@@ -212,22 +199,6 @@ type KPIMetric struct {
 	Change     string  `json:"change"`
 	IsPositive bool    `json:"isPositive"`
 }
-// AccountSummaryResponse represents the raw API response
-type AccountSummaryResponse struct {
-	FullMaintMarginReq float64 `json:"FullMaintMarginReq"`
-	NetLiquidation     float64 `json:"NetLiquidation"`
-	UnrealizedPnL      float64 `json:"UnrealizedPnL"`
-	RealizedPnL        float64 `json:"RealizedPnL"`
-}
-
-func formatCurrency(value float64) string{
-
-	if value>=0{
-		return fmt.Sprintf("$%,.2f", value)
-	}
-	return fmt.Sprintf("-$%,.2f", math.Abs(value))
-}
-
 
 // SSEKPIMetricsHandler handles the SSE endpoint for streaming KPI metrics
 func SSEKPIMetricsHandler(w http.ResponseWriter, r *http.Request) {
@@ -257,7 +228,7 @@ func SSEKPIMetricsHandler(w http.ResponseWriter, r *http.Request) {
 			// Fetch KPI metrics
 			kpiMetrics, err := fetchKPIMetrics()
 			if err != nil {
-				log.Printf("Error fetching KPI metrics: %v\n", err)
+				log.Printf("Error fetching KPI metrics: %v", err)
 				// Send error event to client
 				fmt.Fprintf(w, "event: error\ndata: %s\n\n", err.Error())
 				flusher.Flush()
@@ -268,7 +239,7 @@ func SSEKPIMetricsHandler(w http.ResponseWriter, r *http.Request) {
 			// Convert metrics to JSON
 			metricsJSON, err := json.Marshal(kpiMetrics)
 			if err != nil {
-				log.Printf("Error marshaling KPI metrics: %v\n", err)
+				log.Printf("Error marshaling KPI metrics: %v", err)
 				continue
 			}
 
@@ -290,94 +261,52 @@ func SSEKPIMetricsHandler(w http.ResponseWriter, r *http.Request) {
 func fetchKPIMetrics() (KPIMetrics, error) {
 	// Initialize metrics structure
 	metrics := KPIMetrics{
-		FullMaintMarginReq: KPIMetric{
-			Title: "Maint. Margin",
+		Strategies: KPIMetric{
+			Title: "Strategies",
 		},
-		NetLiquidation: KPIMetric{
-			Title: "Net Liquidation",
+		TotalPositions: KPIMetric{
+			Title: "Total Positions",
 		},
-		UnrealizedPnl: KPIMetric{
-			Title: "Unrealized PnL",
+		TradeCount: KPIMetric{
+			Title: "Trade Count",
 		},
 		RealizedPnL: KPIMetric{
 			Title: "Realized PnL",
 		},
 	}
-	targetURL := "http://broker_api:8000/api/IB/accountSummary"
-	// Create a new request
-	resp, err := http.Get(targetURL)
+
+	// Get real realized PnL for the last 7 days from database
+	realizedPnL, pnlChange, err := fetchRealizedPnL()
 	if err != nil {
-		log.Println("Error getting account summary")
-		return metrics, err
-	}
-	defer resp.Body.Close()
-	// Parse the raw API response
-	var apiResponse AccountSummaryResponse
-	if err := json.NewDecoder(resp.Body).Decode(&apiResponse); err != nil {
-		log.Println("Failed to parse Broker API response")
 		return metrics, err
 	}
 
-	// Convert to KPIMetrics structure
-	metrics = KPIMetrics{
-		FullMaintMarginReq: KPIMetric{
-			Title:      "Maint. Margin",
-			Value:      fmt.Sprintf("%.2f",apiResponse.FullMaintMarginReq),
-			Change:     "", // You'll need to calculate this based on previous values
-			IsPositive: apiResponse.FullMaintMarginReq >= 0.,
-		},
-		NetLiquidation: KPIMetric{
-			Title:      "Net Liquidation",
-			Value:      fmt.Sprintf("%.2f",apiResponse.NetLiquidation),
-			Change:     "",
-			IsPositive: apiResponse.NetLiquidation >= 0.,
-		},
-		UnrealizedPnl: KPIMetric{
-			Title:      "Unrealized PnL",
-			Value:      fmt.Sprintf("%.2f",apiResponse.UnrealizedPnL),
-			Change:     "",
-			IsPositive: apiResponse.UnrealizedPnL >= 0.,
-		},
-		RealizedPnL: KPIMetric{
-			Title:      "Realized PnL",
-			Value:      fmt.Sprintf("%.2f",apiResponse.RealizedPnL),
-			Change:     "",
-			IsPositive: apiResponse.RealizedPnL >= 0.,
-		},
-	}
+	metrics.RealizedPnL.Value = fmt.Sprintf("$%.2f", realizedPnL)
+	metrics.RealizedPnL.Change = fmt.Sprintf("%s%.1f%%", getChangePrefix(pnlChange), abs(pnlChange))
+	metrics.RealizedPnL.IsPositive = pnlChange >= 0
 
-	// // Get real realized PnL for the last 7 days from database
-	// realizedPnL, pnlChange, err := fetchRealizedPnL()
-	// if err != nil {
-	// 	return metrics, err
-	// }
-
-	// metrics.RealizedPnL.Value = fmt.Sprintf("$%.2f", realizedPnL)
-	// metrics.RealizedPnL.Change = fmt.Sprintf("%s%.1f%%", getChangePrefix(pnlChange), abs(pnlChange))
-	// metrics.RealizedPnL.IsPositive = pnlChange >= 0
-
-	// // Generate dummy data for other metrics
+	// Generate dummy data for other metrics
 	
-	// // 1. Strategies (dummy data)
-	// activeStrategies := 
-	// metrics.Strategies.Value = fmt.Sprintf("%d", activeStrategies)
-	// strategyChange := 0.
-	// metrics.Strategies.Change = fmt.Sprintf("%s%.1f%%", getChangePrefix(strategyChange), abs(strategyChange))
-	// metrics.Strategies.IsPositive = strategyChange >= 0
+	// 1. Strategies (dummy data)
+	activeStrategies := 3
+	metrics.Strategies.Value = fmt.Sprintf("%d", activeStrategies)
+	strategyChange := 10.0
+	metrics.Strategies.Change = fmt.Sprintf("%s%.1f%%", getChangePrefix(strategyChange), abs(strategyChange))
+	metrics.Strategies.IsPositive = strategyChange >= 0
 
-	// // 2. Total Positions (dummy data)
-	// totalPositions := 0
-	// metrics.TotalPositions.Value = fmt.Sprintf("%d", totalPositions)
-	// positionChange := 0.0
-	// metrics.TotalPositions.Change = fmt.Sprintf("%s%.1f%%", getChangePrefix(positionChange), abs(positionChange))
-	// metrics.TotalPositions.IsPositive = positionChange >= 0
+	// 2. Total Positions (dummy data)
+	totalPositions := 8
+	metrics.TotalPositions.Value = fmt.Sprintf("%d", totalPositions)
+	positionChange := -5.0
+	metrics.TotalPositions.Change = fmt.Sprintf("%s%.1f%%", getChangePrefix(positionChange), abs(positionChange))
+	metrics.TotalPositions.IsPositive = positionChange >= 0
 
-	// // 3. Trade Count (dummy data)
-	// tradeCount := 12
-	// metrics.TradeCount.Value = fmt.Sprintf("%d", tradeCount)
-	// tradeChange := 15.0
-	// metrics.TradeCount.Change = fmt.Sprintf("%s%.1f%%", getChangePrefix(tradeChange), abs(tradeChange))
-	// metrics.TradeCount.IsPositive = tradeChange >= 0
+	// 3. Trade Count (dummy data)
+	tradeCount := 12
+	metrics.TradeCount.Value = fmt.Sprintf("%d", tradeCount)
+	tradeChange := 15.0
+	metrics.TradeCount.Change = fmt.Sprintf("%s%.1f%%", getChangePrefix(tradeChange), abs(tradeChange))
+	metrics.TradeCount.IsPositive = tradeChange >= 0
 
 	return metrics, nil
 }
@@ -392,12 +321,7 @@ func fetchRealizedPnL() (float64, float64, error) {
 	// Query for current period (last 7 days)
 	currentQuery := `
 		SELECT 
-			coalesce(SUM(
-                (CASE WHEN t.side='BUY'
-				 	  THEN -1 * t.quantity*t.price
-				 	  ELSE t.quantity * t.price END) * fc.multiplier
-				),
-			0)  AS total_adjusted_pnl
+			SUM(CASE WHEN t.side='BUY' THEN t.quantity*t.price ELSE -1 * t.quantity * t.price END) * fc.multiplier AS adjusted_pnl
 		FROM 
 			trades t
 		JOIN 
@@ -414,18 +338,11 @@ func fetchRealizedPnL() (float64, float64, error) {
 
 	// Query for previous period (7-14 days ago)
 	previousQuery := `
-		SELECT 
-		coalesce(SUM(
-                (CASE WHEN t.side='BUY'
-				 THEN -1 * t.quantity*t.price
-				 ELSE t.quantity * t.price END) * fc.multiplier
-				),0)  AS total_adjusted_pnl
-                FROM 
-			trades t
-		JOIN 
-			futures_contracts fc ON t.symbol = fc.symbol
-		WHERE
-			t.last_updated_at BETWEEN $1 AND $2
+		SELECT COALESCE(SUM(price * quantity), 0) AS pnl_sum
+		FROM trades
+		WHERE status = 'FILLED'
+		AND side = 'SELL'
+		AND last_updated_at BETWEEN $1 AND $2
 	`
 	var previousPnL float64
 	err = db.QueryRow(previousQuery, fourteenDaysAgo, sevenDaysAgo).Scan(&previousPnL)

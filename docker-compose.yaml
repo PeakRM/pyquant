@@ -6,7 +6,7 @@ services:
       context: ./src/backend
     container_name: backend
     ports:
-      - "50051:50051"
+      - "100.95.122.7:50051:50051"
     environment:
       - ENVIRONMENT=${ENVIRONMENT}
       - SHARED_PATH=/shared
@@ -29,7 +29,7 @@ services:
       context: ./src/broker_api
     container_name: broker_api
     ports:
-      - "8000:8000"
+      - "100.95.122.7:8000:8000"
     environment:
       - ENVIRONMENT=${ENVIRONMENT}
       - SHARED_PATH=/shared
@@ -50,7 +50,7 @@ services:
       context: ./src/scheduler
     container_name: scheduler
     ports:
-      - "8080:8080"
+      - "100.95.122.7:8080:8080"
     depends_on:
       - broker_api
       - postgres
@@ -87,7 +87,7 @@ services:
       # Allow API connections
       IBC_ReadOnlyApi: no
       # Optional: Set trading mode (paper/live)
-      IBC_TradingMode: paper
+      IBC_TradingMode: live
       IBC_AcceptIncomingConnectionAction: accept
       IBC_AcceptNonBrokerageAccountWarning: yes
     networks:

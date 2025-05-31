@@ -57,6 +57,10 @@ class BrokerInterface(ABC):
     async def validate_contract(self, contract: Contract) -> bool:
         pass
 
+    @abstractmethod
+    async def get_account_summary(self) -> Dict[str, float]:
+        pass
+
 # Interactive Brokers Implementation
 class IBKRBroker(BrokerInterface):
     def __init__(self):
@@ -105,7 +109,6 @@ class IBKRBroker(BrokerInterface):
             await self.ib.qualifyContractsAsync(ib_contract)
             tickers = self.ib.reqMktData(ib_contract, snapshot=True)
             self.ib.sleep(1)
-            print(tickers)
             return Quote(
                 # contract=contract,
                 symbol=contract.symbol,
@@ -125,7 +128,6 @@ class IBKRBroker(BrokerInterface):
             await self.ib.qualifyContractsAsync(ib_contract)
             tickers = self.ib.reqMktData(ib_contract, snapshot=True)
             self.ib.sleep(1)
-            print(tickers.last, type(tickers.last))
             quote = Quote(
                 symbol=ib_contract.symbol,
                 bid=tickers.bid,
@@ -165,14 +167,11 @@ class IBKRBroker(BrokerInterface):
         trades=[]
         try:
             ib_trades = self.ib.trades()
-            # print(self.ib.trades())
-            # print(self.ib.orders())
             for trade in ib_trades:
                 quantity=0
                 price=0.
                 print(trade)
                 if trade.orderStatus.status == "Filled":
-                    # print("FIlls:",trade.fills[0])
                     quantity=trade.fills[0].execution.shares
                     price=trade.fills[0].execution.price
                     order_id = trade.fills[0].execution.orderId
@@ -185,16 +184,13 @@ class IBKRBroker(BrokerInterface):
                     price=price,
                     side=OrderSide.BUY if trade.order.action == "BUY" else OrderSide.SELL,
                     order_status=trade.orderStatus.status)
-                # print(t)
                 trades.append(t)
             return trades
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to get : {str(e)}")
 
-
     async def place_order(self, order: Order) -> str:
         await self.connect()
-        print(self.client_id, self._connected)
         ib_contract = self._convert_contract(contract_id=order.trade.contract_id,
                                              exchange=order.trade.exchange)
 
@@ -282,7 +278,6 @@ class IBKRBroker(BrokerInterface):
 
         try:
             contracts = await self.ib.qualifyContractsAsync(ib_contract)
-            print(contracts)
             return len(contracts) > 0
         except Exception:
             return False
@@ -357,6 +352,19 @@ class IBKRBroker(BrokerInterface):
             print(e)
             return 0
         return 1
+
+    async def get_account_summary(self)->Dict[str,float]:
+        await self.connect()
+        try:
+            acct_summary=self.ib.accountValues()
+            scope=['NetLiquidation','CashBalance','TotalCashBalance','BuyingPower','AvailableFunds',
+                   'FullMaintMarginReq','FullInitMarginReq','InitMarginReq',
+                   'GrossPositionValue','FuturesPNL','UnrealizedPnL','RealizedPnL']
+            # print(acct_summary)
+            return {r.tag:float(r.value) for r in acct_summary if (r.tag in scope)&(r.currency=='USD')} 
+        except Exception as e:
+            print("Error: ", e)
+            return {}
 
 class TestBroker(BrokerInterface):
     def __init__(self):

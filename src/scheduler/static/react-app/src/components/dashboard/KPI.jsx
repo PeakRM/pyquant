@@ -6,7 +6,7 @@ import React from 'react';
  */
 export const KPIMetricsDashboard = ({ metrics }) => {
   return (
-    <div className="grid grid-cols-2 grid-rows-2 gap-4 mb-6">
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
       {metrics.map((metric, index) => (
         <KPIMetricCard key={index} metric={metric} />
       ))}
@@ -19,14 +19,33 @@ export const KPIMetricsDashboard = ({ metrics }) => {
  * Individual card showing a single KPI with title, value and trend
  */
 export const KPIMetricCard = ({ metric }) => {
+  if (!metric) return null; // Add this guard
   const { title, value, change, isPositive } = metric;
+  const getValueColor=() => {
+    if (title.includes('P&L') || title.includes('PnL')){
+      return isPositive ? 'text-green-600':'text-red-600';
+    }
+    return 'text-gray-800';
+  }
+  const formatCurrency = (value) => {
+    const num = parseFloat(value);
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD'
+    }).format(num);
+  };
+ 
 
-  return (
-    <div className="bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-700">
-      <h3 className="text-gray-400 text-sm font-medium">{title}</h3>
+ return (
+    <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
+      <h3 className="text-gray-600 text-sm font-medium">{title}</h3>
       <div className="flex items-end mt-1">
-        <span className="text-2xl font-bold text-gray-300">{value}</span>
-        {change && (
+      {/*  <span className="text-2xl font-bold text-gray-800">{value}</span>*/}
+
+	<span className={`text-2xl font-bold ${getValueColor()}`}>
+  		{formatCurrency(value)}
+	</span>
+      {change && (
           <span className={`ml-2 text-sm ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
             {change}
           </span>
@@ -42,7 +61,7 @@ export const KPIMetricCard = ({ metric }) => {
  */
 export const StrategyKPIBar = ({ activeStrategies, totalStrategies, totalPositions, unrealizedPnl, realizedPnl }) => {
   return (
-    <div className="flex-1 flex justify-around border-l border-r border-gray-700 px-6">
+    <div className="flex-1 flex justify-around border-l border-r border-gray-200 px-6">
       <KPIItem
         icon="Layers"
         label="Active"

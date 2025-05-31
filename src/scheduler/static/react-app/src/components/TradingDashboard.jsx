@@ -74,9 +74,13 @@ export default function TradingDashboard() {
   const [chartData, setChartData] = useState([]);
   const [chartLoading, setChartLoading] = useState(false);
   const [contractResult, setContractResult] = useState(null);
-  const [kpiMetrics, setKPIMetrics] = useState([]);
   const SCHEDULER_API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:8080' : '';
-
+  const [kpiMetrics, setKPIMetrics] = useState({
+    maintMarginReq: { title: '', value: '', change: '', isPositive: false },
+    netLiquidation: { title: '', value: '', change: '', isPositive: false },
+    unrealizedPnl: { title: '', value: '', change: '', isPositive: false },
+    realizedPnL: { title: '', value: '', change: '', isPositive: false }
+  });
   // Fetch strategies on component mount
   useEffect(() => {
     fetchStrategies();
@@ -122,6 +126,7 @@ export default function TradingDashboard() {
       setTrades(newTrades);
     };
 
+
     // Set up strategy config refresh streaming
     const refreshSource = new EventSource(`${SCHEDULER_API_BASE}/refreshStrategyConfig`);
     refreshSource.onmessage = (event) => {
@@ -130,11 +135,24 @@ export default function TradingDashboard() {
     };
 
     // const { title, value, change, isPositive } = metric;
-
+    // Set up KPI metrics streaming
+    const kpiSource = new EventSource(`${SCHEDULER_API_BASE}/streamKPIMetrics`);
+    kpiSource.onmessage = (event) => {
+      console.log('Raw event data:', event.data); // Add this line
+      try {
+        const newMetrics = JSON.parse(event.data);
+        console.log('Parsed metrics:', newMetrics); // Check structure
+        setKPIMetrics(newMetrics);
+      } catch (error) {
+        console.error('Error parsing KPI metrics:', error);
+      }
+    };
 
     return () => {
       positionSource.close();
       refreshSource.close();
+      kpiSource.close();
+      tradeSource.close();
     };
   }, []);
 
@@ -409,6 +427,16 @@ export default function TradingDashboard() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+        {/* KPI Metrics Dashboard */}
+        <KPIMetricsDashboard 
+          metrics={[
+            kpiMetrics.netLiquidation,
+            kpiMetrics.maintMarginReq,
+            kpiMetrics.realizedPnl,
+            kpiMetrics.unrealizedPnl
+          ]} 
+        />
+
         {/* Trading Activity and Chart Section side by side */}
         <div className="flex flex-col md:flex-row md:space-x-6 mb-6">
           {/* Trading Activity Component */}

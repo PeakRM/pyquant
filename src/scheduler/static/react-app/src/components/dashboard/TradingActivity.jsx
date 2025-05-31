@@ -15,7 +15,7 @@ const TradingActivityComponent = ({
   const activePositionsCount = Object.values(positions).filter(position => position.quantity !== 0).length;
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden h-full">
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden h-full md:mb-6">
       {/* Header with tabs */}
       <div
         className="p-3 flex items-center justify-between bg-gray-50 border-b border-gray-200"
@@ -23,7 +23,7 @@ const TradingActivityComponent = ({
         <div className="flex items-center">
         <h2 className="text-base font-small text-gray-700">Trading Activity</h2>
         <span className="ml-2 text-gray-500 text-base">
-            {activeTab === 'positions'
+            {activeTab === 'positions' 
               ? `${activePositionsCount} active positions`
               : 'Last 24 hours'}
           </span>

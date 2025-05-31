@@ -6,123 +6,126 @@ export const NewStrategyModal = ({ isOpen, onClose, onSubmit }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="fixed inset-0 bg-black bg-opacity-50" onClick={onClose}></div>
-      <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md relative z-10">
-        <div className="flex justify-between items-center mb-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto relative z-10">
+        <div className="sticky top-0 bg-white border-b p-4 flex justify-between items-center">
           <h2 className="text-xl font-semibold">Add New Strategy</h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 p-1">
             <X size={20} />
           </button>
         </div>
         
         <form onSubmit={onSubmit}>
-          <div>
-            <label className="block font-medium mb-1" htmlFor="fileInput">Upload Script</label>
-            <input 
-              className="block w-full border rounded p-2" 
-              type="file" 
-              id="fileInput" 
-              name="uploaded_file"
-              required
-            />
-          </div>
-          <div>
-            <label className="block font-medium mb-1" htmlFor="strategyName">Strategy Name</label>
-            <input 
-              className="block w-full border rounded p-2" 
-              type="text" 
-              id="strategyName" 
-              name="strategyName"
-              required
-            />
-          </div>
-          
-          <div className="mt-4">
-            <label className="block font-medium mb-1" htmlFor="typeSelect">Type</label>
-            <select 
-              className="block w-full border rounded p-2" 
-              id="typeSelect" 
-              name="type"
+          <div className="p-4 space-y-4">
+
+            <div>
+              <label className="block font-medium mb-1" htmlFor="fileInput">Upload Script</label>
+              <input 
+                className="block w-full border rounded p-2" 
+                type="file" 
+                id="fileInput" 
+                name="uploaded_file"
+                required
+              />
+            </div>
+            <div>
+              <label className="block font-medium mb-1" htmlFor="strategyName">Strategy Name</label>
+              <input 
+                className="block w-full border rounded p-2" 
+                type="text" 
+                id="strategyName" 
+                name="strategyName"
+                required
+              />
+            </div>
+            
+            <div className="mt-4">
+              <label className="block font-medium mb-1" htmlFor="typeSelect">Type</label>
+              <select 
+                className="block w-full border rounded p-2" 
+                id="typeSelect" 
+                name="type"
+              >
+                <option value="Rebalance">Rebalance</option>
+                <option value="Alpha">Alpha</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            
+            <h3 className="font-semibold text-lg mt-6">Initial Setup</h3>
+            
+            <div>
+              <label className="block font-medium mb-1" htmlFor="setupName">Setup Name</label>
+              <input 
+                className="block w-full border rounded p-2" 
+                type="text" 
+                id="setupName" 
+                name="setupName"
+                required
+              />
+            </div>
+            
+            <div className="mt-4">
+              <label className="block font-medium mb-1" htmlFor="market">Market</label>
+              <input 
+                className="block w-full border rounded p-2" 
+                type="text" 
+                id="market" 
+                name="market"
+                required
+              />
+            </div>
+                          
+            <div>
+              <label className="block font-medium mb-1" htmlFor="contract_id">Contract ID</label>
+              <input 
+                className="block w-full border rounded p-2" 
+                type="text" 
+                id="contract_id" 
+                name="contract_id"
+                required
+              />
+            </div>
+            
+            <div>
+              <label className="block font-medium mb-1" htmlFor="timeframe">Timeframe</label>
+              <input 
+                className="block w-full border rounded p-2" 
+                type="text" 
+                id="timeframe" 
+                name="timeframe"
+                required
+              />
+            </div>
+            
+            <div>
+              <label className="block font-medium mb-1" htmlFor="schedule">Schedule</label>
+              <input 
+                className="block w-full border rounded p-2" 
+                type="text" 
+                id="schedule" 
+                name="schedule"
+                required
+              />
+            </div>
+            
+            <div>
+              <label className="block font-medium mb-1" htmlFor="additionalData">Additional Data (comma separated)</label>
+              <input 
+                className="block w-full border rounded p-2" 
+                type="text" 
+                id="otherMarketData" 
+                name="otherMarketData"
+              />
+            </div>
+            <button 
+              type="submit" 
+              className="w-full py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition mt-6"
             >
-              <option value="Rebalance">Rebalance</option>
-              <option value="Alpha">Alpha</option>
-              <option value="Other">Other</option>
-            </select>
+              Create Strategy
+            </button>
           </div>
-          
-          <h3 className="font-semibold text-lg mt-6">Initial Setup</h3>
-          
-          <div>
-            <label className="block font-medium mb-1" htmlFor="setupName">Setup Name</label>
-            <input 
-              className="block w-full border rounded p-2" 
-              type="text" 
-              id="setupName" 
-              name="setupName"
-              required
-            />
-          </div>
-          
-          <div className="mt-4">
-            <label className="block font-medium mb-1" htmlFor="market">Market</label>
-            <input 
-              className="block w-full border rounded p-2" 
-              type="text" 
-              id="market" 
-              name="market"
-              required
-            />
-          </div>
-                        
-          <div>
-            <label className="block font-medium mb-1" htmlFor="contract_id">Contract ID</label>
-            <input 
-              className="block w-full border rounded p-2" 
-              type="text" 
-              id="contract_id" 
-              name="contract_id"
-              required
-            />
-          </div>
-          
-          <div>
-            <label className="block font-medium mb-1" htmlFor="timeframe">Timeframe</label>
-            <input 
-              className="block w-full border rounded p-2" 
-              type="text" 
-              id="timeframe" 
-              name="timeframe"
-              required
-            />
-          </div>
-          
-          <div>
-            <label className="block font-medium mb-1" htmlFor="schedule">Schedule</label>
-            <input 
-              className="block w-full border rounded p-2" 
-              type="text" 
-              id="schedule" 
-              name="schedule"
-              required
-            />
-          </div>
-          
-          <div>
-            <label className="block font-medium mb-1" htmlFor="additionalData">Additional Data (comma separated)</label>
-            <input 
-              className="block w-full border rounded p-2" 
-              type="text" 
-              id="otherMarketData" 
-              name="otherMarketData"
-            />
-          </div>
-          <button 
-            type="submit" 
-            className="w-full py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition mt-6"
-          >
-            Create Strategy
-          </button>
         </form>
       </div>
     </div>

@@ -108,15 +108,22 @@ func main() {
 			handler.ServeHTTP(w, r)
 		})
 	}
-
-	http.Handle("/strategies", corsMiddleware(http.HandlerFunc(handleListStrategies)))
-	http.Handle("/strategies/", corsMiddleware(http.HandlerFunc(handleStrategyActions)))           // e.g. POST /strategies/{strategyName}/{setupName}/toggle
+	// Server Sent Events
 	http.Handle("/streamPositions", corsMiddleware(http.HandlerFunc(positionStreamHandler)))       // handle positions
 	http.Handle("/streamTrades", corsMiddleware(http.HandlerFunc(handlers.SSETradesHandler)))      // handle positions
+	http.Handle("/streamKPIMetrics", corsMiddleware(http.HandlerFunc(handlers.SSEKPIMetricsHandler)))      // handle positions
 	http.Handle("/refreshStrategyConfig", corsMiddleware(http.HandlerFunc(refreshStrategyConfig))) // tells front end refresh strategies due to backend changes
+	
+	// Strategy Configuration & Controls
+	http.Handle("/strategies", corsMiddleware(http.HandlerFunc(handleListStrategies)))
+	http.Handle("/strategies/", corsMiddleware(http.HandlerFunc(handleStrategyActions)))           // e.g. POST /strategies/{strategyName}/{setupName}/toggle
 	http.Handle("/uploadNewStrategy", corsMiddleware(http.HandlerFunc(newStrategyHandler)))
+	
+	// Add or Change Setups
 	http.Handle("/updateSetup", corsMiddleware(http.HandlerFunc(updateSetup)))
 	http.Handle("/addSetup", corsMiddleware(http.HandlerFunc(addSetupHandler)))
+
+	// Broker API endpoints
 	http.Handle("/proxy/quote/", corsMiddleware(http.HandlerFunc(proxyQuote)))
 	http.Handle("/proxy/historicalData", corsMiddleware(http.HandlerFunc(proxyHistoricalData)))
 	http.Handle("/proxy/contractId", corsMiddleware(http.HandlerFunc(proxyContractId)))
@@ -814,7 +821,7 @@ func toggleSetup(strategyName, setupName string, w http.ResponseWriter, r *http.
 	shared_strategy_config := GetSharedFilePath("strategy-config.json")
 	// 4) Persist to JSON
 	if err := saveStrategies(shared_strategy_config); err != nil {
-		http.Error(w, "Failed to save config: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Failed to save config: " + err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -914,6 +921,9 @@ func startScript(scriptPath, strategyName, setupName string) error {
 	}
 
 	cmd := exec.Command(venvPythonPath, scriptPath, setupName)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+							Setpgid: true, // Create new process group
+						}
 	fmt.Println(cmd.Process)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -927,12 +937,24 @@ func startScript(scriptPath, strategyName, setupName string) error {
 	if err := cmd.Start(); err != nil {
 		return err
 	}
-	defer cmd.Wait()
 	fmt.Println("Running", scriptPath, setupName)
 
 	runningMu.Lock()
 	runningProcs[key] = cmd
 	runningMu.Unlock()
+    
+	// Wait for the process in a separate goroutine to prevent zombies
+    go func() {
+        defer func() {
+            // Clean up when process exits
+            runningMu.Lock()
+            delete(runningProcs, key)
+            runningMu.Unlock()
+        }()
+        
+        cmd.Wait() // This will block until process exits, but won't block HTTP response
+        fmt.Printf("Process %s has exited\n", key)
+    }()
 
 	return nil
 }
@@ -947,7 +969,16 @@ func stopScript(strategyName, setupName string) {
 	if !exists {
 		return
 	}
-	_ = cmd.Process.Kill() // ignoring error for brevity
+    // Try graceful termination first
+    if cmd.Process != nil {
+        cmd.Process.Signal(syscall.SIGTERM)
+        
+        // Give it a moment to shut down gracefully
+        time.Sleep(100 * time.Millisecond)
+        
+        // Force kill if still running
+        cmd.Process.Kill()
+    }
 	delete(runningProcs, key)
 }
 

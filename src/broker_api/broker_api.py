@@ -79,3 +79,8 @@ async def get_positions(broker: str):
 async def get_trades(broker: str):
     broker_instance = BrokerFactory.get_broker(broker)
     return await broker_instance.get_trades()
+
+@app.get("/api/{broker}/accountSummary")
+async def get_account_summary(broker: str):
+    broker_instance = BrokerFactory.get_broker(broker)
+    return await broker_instance.get_account_summary()
