@@ -34,18 +34,15 @@ export const KPIMetricCard = ({ metric }) => {
       currency: 'USD'
     }).format(num);
   };
- 
 
  return (
     <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
       <h3 className="text-gray-600 text-sm font-medium">{title}</h3>
       <div className="flex items-end mt-1">
-      {/*  <span className="text-2xl font-bold text-gray-800">{value}</span>*/}
-
-	<span className={`text-2xl font-bold ${getValueColor()}`}>
-  		{formatCurrency(value)}
-	</span>
-      {change && (
+        <span className={`text-2xl font-bold ${getValueColor()}`}>
+          {formatCurrency(value)}
+        </span>
+        {change && (
           <span className={`ml-2 text-sm ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
             {change}
           </span>

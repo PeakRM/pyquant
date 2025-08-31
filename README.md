@@ -15,14 +15,18 @@ brokers (IBKR, TDA, etc.) to centralize execution and reconciliation.
     - Backend
         - Improve execution logic (optional)
     - Broker API
-        - Add logic to handle stops orders and improve fill monitoring (optional)
-        - Add TD Ameritrade broker
+        - Add logic to handle stops orders.
+        - Add TD Ameritrade broker - IN PROGRESS
         - Add functionality to enable option trading
-    - Scehduler / Frontend
+    - Scheduler / Frontend
+        - Decouple frontend & add monitoring service
         - Fix scheduler to use cron for scheduling strategies
             - Add endpoint to schduler to allow strategies to send heartbeats to frontend
         - Add setup parameters to strategy configuration at setup-level 
         - Change strategy config to list each setup independently
             - Add strategy-group for grouping on frontend
-        - Add KPIs for Buying Power, NLV, Cash @ broker
+Recent improvements
+    - Add KPIs for Buying Power, NLV, to frontend
+    - improve fill monitoring
+    
     

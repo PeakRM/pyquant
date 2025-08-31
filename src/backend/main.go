@@ -249,8 +249,6 @@ func processNewTrades() {
 		trade := tradeWithID.Trade
 		tradeID := tradeWithID.TradeID
 
-		// workerInfo := fmt.Sprintf("Worker %d ==>", workerId)
-
 		// Create key for Order
 		positionId := fmt.Sprintf("%s-%s", trade.StrategyName, trade.Symbol)
 
@@ -270,30 +268,30 @@ func processNewTrades() {
 				continue
 			}
 		}
-		// log.Printf("%sProcessing trade: %s\n", workerInfo, trade)
 		var lmtPrice float64 = 0.0 // Limit price for limit orders
 
-		// Check if price is provided in the trade instruction
-		if trade.Price != "" {
-			// Convert price string to float64
-			var err error
-			lmtPrice, err = strconv.ParseFloat(trade.Price, 64)
-			if err != nil {
-				log.Printf("Failed to convert price '%s' to float64: %v", trade.Price, err)
-				// Fall back to fetching price if conversion fails
-				lmtPrice = 0.0
-			} else {
-				log.Printf("Using provided price: %f\n", lmtPrice)
-			}
-		}
+		// // Check if price is provided in the trade instruction
+		// if trade.Price != "" {
+		// 	// Convert price string to float64
+		// 	var err error
+		// 	lmtPrice, err = strconv.ParseFloat(trade.Price, 64)
+		// 	if err != nil {
+		// 		log.Printf("Failed to convert price '%s' to float64: %v", trade.Price, err)
+		// 		// Fall back to fetching price if conversion fails
+		// 		lmtPrice = 0.0
+		// 	} else {
+		// 		log.Printf("Using provided price: %f\n", lmtPrice)
+		// 	}
+		// }
 
 		// If price is not provided or conversion failed, and it's not a market order, fetch price
-		if trade.OrderType == "MKT" {
-			log.Printf("Market order, skipping price quote: %s\n", trade)
-			lmtPrice = 0.0
-		} else if lmtPrice != 0.0 {
-			log.Printf("Using provided price: %f\n", lmtPrice)
-		} else {
+		// if trade.OrderType == "MKT"  {
+		// 	log.Printf("Market order, skipping price quote: %s\n", trade)
+		// 	lmtPrice = 0.0
+		// } else if lmtPrice != 0.0 {
+		// 	log.Printf("Using provided price: %f\n", lmtPrice)
+		// } else {
+		if trade.OrderType == "LMT" && trade.Price == 0.0{ 
 			// Fetch price quote
 			quote, err := fetchPriceQuote(trade.ContractId, trade.Exchange, trade.Broker)
 			if err != nil {
@@ -305,12 +303,18 @@ func processNewTrades() {
 				lmtPrice = quote.Ask
 			}
 		}
-
-		quantity, err := strconv.ParseFloat(trade.Quantity, 64)
-		if err != nil {
-			log.Printf("Failed to convert Quantity string to float64 for symbol %s: %v", trade.Quantity, err)
-			continue
+		
+		if trade.OrderType == "LMT" && trade.Price != 0.0{ 
+			lmtPrice=trade.Price
 		}
+
+		// price and quantity are being parsed on receipt of trade.
+		// quantity, err := strconv.ParseFloat(trade.Quantity, 64)
+		// if err != nil {
+		// 	log.Printf("Failed to convert Quantity string to float64 for symbol %s: %v", trade.Quantity, err)
+		// 	continue
+		// }
+
 		// Create order
 		order := Order{
 			TradeInstruction: TradeInstruction{
@@ -410,7 +414,7 @@ func monitorFill(orderResp OrderResponse) {
 			fmt.Printf("Order %s: %d -- %f\n", trade.Status, orderResp.OrderId, trade.Price)
 			isFilled = true
 		}
-		time.Sleep(time.Second)
+		time.Sleep(time.Second*2)
 	}
 }
 
@@ -446,25 +450,25 @@ type MatchedTrades struct {
 	Trade
 }
 
-// returns the intersection of trade list an dorder responses
-func findOrderInTrades(slice1 []Trade, slice2 *sync.Map) []MatchedTrades {
+// returns the intersection of trade list and order responses
+func findOrderInTrades(tradeList []Trade, orderResponseMap *sync.Map) []MatchedTrades {
 	intersection := []MatchedTrades{}
-	slice2.Range(func(key, value interface{}) bool {
+	orderResponseMap.Range(func(key, value interface{}) bool {
 
-		val2, ok := value.(*OrderResponse) // Type assertion for the value from sync.Map
+		orderResponse, ok := value.(*OrderResponse) // Type assertion for the value from sync.Map
 		if !ok {
 			log.Printf("Unable to assert Order Response: %v (type: %T)\n", value, value)
 			return true
 		}
 
-		for _, val1 := range slice1 {
-			log.Printf("Matching Trade -> OrderID %d, Trade ID: %d,  Trade Status: %s", val2.OrderId, val1.Id, val1.Status)
+		for _, trade := range tradeList {
+			log.Printf("Matching Trade -> OrderID %d, Trade ID: %d,  Trade Status: %s", orderResponse.OrderId, trade.Id, trade.Status)
 
-			if val1.Id == val2.OrderId && val1.Status == "Filled" {
+			if trade.Id == orderResponse.OrderId && trade.Status == "Filled" {
 				log.Println("Trade Trades")
 
-				intersection = append(intersection, MatchedTrades{OrderResponse: *val2, Trade: val1})
-				break // Avoid duplicates from slice2
+				intersection = append(intersection, MatchedTrades{OrderResponse: *orderResponse, Trade: trade})
+				break // Avoid duplicates from orderResponseMap
 			}
 		}
 		return true
@@ -515,10 +519,12 @@ func monitorFills(done chan struct{}) {
 				updatePositionsFromResponse(order.OrderResponse,
 					order.Trade.Status,
 					order.Trade.Price,
-					int(direction*math.Abs(float64(order.Trade.Quantity))))
+					int(direction*math.Abs(float64(order.Trade.Quantity)))
+				)
+				
 				fmt.Printf("Order %s: %d -- %f\n", order.Trade.Status,
-					order.OrderResponse.OrderId,
-					order.Trade.Price)
+												order.OrderResponse.OrderId,
+												order.Trade.Price)
 
 				// remove from orderResponse queue
 				orq_key := fmt.Sprintf("%v-%d", order.OrderResponse.Order.Timestamp, order.OrderResponse.OrderId)
@@ -538,7 +544,7 @@ func updatePositionsFromResponse(orderResp OrderResponse, status string, costBas
 	if ok {
 		pos, ok := positionMap.(definitions.Position)
 		if ok {
-			fmt.Print("Position Map", pos)
+			fmt.Print("Position Map:", pos)
 			quantity += pos.Quantity
 		}
 
@@ -716,7 +722,6 @@ func main() {
 	}
 
 	// Start the trade processing worker
-	// startWorkerPool(5, processNewTrades) //could be used elsewhere, when iterating in new fill monitor
 	go processNewTrades()
 	go sendOrdersToFillMonitor()
 	go monitorFills(done)

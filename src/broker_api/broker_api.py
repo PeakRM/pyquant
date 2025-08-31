@@ -45,10 +45,11 @@ async def get_historical_data(
     contract: Contract,
     start_time: datetime,
     end_time: datetime,
-    bar_size: str
+    bar_size: str,
+    rth:bool=True
 ):
     broker_instance = BrokerFactory.get_broker(broker)
-    return await broker_instance.get_historical_data(contract, start_time, end_time, bar_size)
+    return await broker_instance.get_historical_data(contract, start_time, end_time, bar_size, rth)
 
 @app.post("/api/{broker}/validate-contract")
 async def validate_contract(broker: str, contract: Contract):
